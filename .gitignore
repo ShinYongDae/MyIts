@@ -1,0 +1,11 @@
+Debug/
+ipch/
+x64/
+MyIts.sdf
+MyIts.VC.db
+MyIts/Debug/
+MyIts/x64/
+.vs/
+MyIts/MyIts.aps
+
+
