@@ -5,12 +5,20 @@
 #include "PcrYield.h"
 #include "PcrMark.h"
 
+#define PATH_CONFIG				_T("C:\\R2RSet\\Config.ini")
+#define PATH_SAPP3				_T("C:\\R2RSet\\Sapp3.ini")
+#define PATH_ITS_FOLDER			_T("D:\\Its")
+
 #ifndef MAX_STRIP
 #define MAX_STRIP	4
 #endif
 
 #ifndef MAX_DEF
 #define MAX_DEF		30
+#endif
+
+#ifndef MAX_SAPP3
+#define MAX_SAPP3	10
 #endif
 
 #ifndef DEF_DEFINE
@@ -118,12 +126,21 @@
 #define	RGB_PCS_OUT			RGB_LTGRAY
 #endif
 
-#define PATH_CONFIG				_T("C:\\R2RSet\\Config.ini")
-
 typedef enum tagDefCode {
 	None = 0, Nick, Prot, Space, Open, Short, UShort, PinHole, HoleMiss, Extra, Pad, HolePos, Poi, VhPos, VhMiss, HoleDef,
 	HoleOpen, VhOpen, VhDef, EdgeNick, EdgeProt, EdgeSpace, Define1, Narrow, Wide, FixedDef, VhSize, VhEdge, Light, Inner
 }DefCode;
+
+
+typedef enum tagRMap {
+	RMapNone = -1, RMapUp, RMapDn, RMapAll, RMapUpInner, RMapDnInner, RMapAllInner, RMapUpOutter, RMapDnOutter, RMapAllOutter, RMapIts
+}RMap;
+
+typedef enum tagSapp3 {
+	Sapp3Open = 0, Sapp3Short, Sapp3Nick, Sapp3SpaceExtraProt, Sapp3PinHole, Sapp3HOpen, 
+	Sapp3HMissHPosHBad, Sapp3UShort, Sapp3Pad, Sapp3VHOpenVHAlignVHDefNoVH
+}Sapp3;
+
 
 typedef struct tagRmapInfo
 {
@@ -206,7 +223,7 @@ class CSimpleReelmap : public CWnd
 	CWnd* m_pParent;
 	HWND m_hParent;
 
-	CString m_sPathRmap, m_sPathYield, m_sPathMark;
+	CString m_sPathInfo, m_sPathRmap, m_sPathYield, m_sPathMark;
 	BOOL CreateWndForm(DWORD dwStyle);
 
 	BOOL m_bThreadAlive, m_bThreadStateEnd;
@@ -226,6 +243,7 @@ class CSimpleReelmap : public CWnd
 	char m_cBigDef[MAX_DEF], m_cSmallDef[MAX_DEF];
 	int m_nOdr[MAX_DEF];
 	int m_nBkColor[3]; //RGB
+	int m_nSapp3Code[MAX_SAPP3];
 
 	BOOL IsShare(int &nSerial);
 	BOOL Add(int nSerial);
@@ -243,31 +261,42 @@ class CSimpleReelmap : public CWnd
 	void Free();
 
 	int m_nCMstTotPcs;
+	BOOL LoadSapp3CodeIni();
 	BOOL LoadDefectTableIni();
 	void InitColor();
 	void InitDef();
+	BOOL LoadInfo();
 	BOOL LoadRmap();
 	BOOL LoadYield();
 	BOOL LoadMark();
+	BOOL SaveInfo();
 	BOOL SaveRmap();
 	BOOL SaveYield();
 	BOOL SaveMark();
 
+	int m_nLayer;
 	int m_nDispPnl[2]; // Left(0), Right(1)
 	int m_nMkedPcs[2]; // Left(0), Right(1)
 	int GetPcrIdx(int nCam);
 	BOOL GetResult();
+	CString GetTimeIts();
+	CString GetPathIts(int nSerial);
+	CString GetTextIts(int nSerial);
+	BOOL MakeIts(int nSerial);
+	int GetItsDefCode(int nDefCode);
 
 public:
-	CSimpleReelmap(CString sPathRmap, CString sPathYield, CString sPathMark, CWnd* pParent = NULL);
+	CSimpleReelmap(int nLayer, CString m_sPathInfo, CString sPathRmap, CString sPathYield, CString sPathMark, CWnd* pParent = NULL);
 	virtual ~CSimpleReelmap();
 	static void ProcThrd(const LPVOID lpContext);
 
-	void Init(int nMaxRow, int nMaxCol, int nActionCode = 0);
+	void Init(stRmapInfo stInfo);//int nMaxRow, int nMaxCol, int nActionCode = 0
 	CString GetTextResult();
 	CString GetTextConverse();
 	CString GetTextArPcr();
 	CString GetTextArPcrYield();
+	CString GetTextListItsFile(int nIdx = -1); // Default : All
+	CString GetTextItsFile(int nIdx);
 	BOOL GetMatrix(int nPcsId, int &nR, int &nC);
 	BOOL Save();
 	BOOL Load();

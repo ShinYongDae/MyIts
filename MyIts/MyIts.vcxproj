@@ -181,6 +181,7 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="MyEdit.h" />
     <ClInclude Include="MyIts.h" />
     <ClInclude Include="MyItsDlg.h" />
     <ClInclude Include="Pcr.h" />
@@ -192,6 +193,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="MyEdit.cpp" />
     <ClCompile Include="MyIts.cpp" />
     <ClCompile Include="MyItsDlg.cpp" />
     <ClCompile Include="Pcr.cpp" />

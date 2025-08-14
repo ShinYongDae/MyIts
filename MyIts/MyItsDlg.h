@@ -4,6 +4,7 @@
 
 #pragma once
 #include "SimpleReelmap.h"
+#include "MyEdit.h"
 
 
 // CMyItsDlg 대화 상자
@@ -11,9 +12,20 @@ class CMyItsDlg : public CDialog
 {
 	CSimpleReelmap* m_pReelmap;
 	BOOL m_bConverse;
+
+	CMyEdit myEdit;
+	void InitEdit();
+
+	int m_nIdxItsFile;
 	
 	void InitReelmap();
-	void Disp();
+	void Disp(int nIdx);
+	void DispReelmap();
+	void DispReelmapResult();
+	void DispIts();
+	void DispItsResult();
+	void DispSapp3();
+	void DispSapp3Result();
 
 // 생성입니다.
 public:
@@ -25,7 +37,12 @@ public:
 	enum { IDD = IDD_MYITS_DIALOG };
 #endif
 
-	protected:
+public:
+
+protected:
+	afx_msg LRESULT wmClickEdit(WPARAM wParam, LPARAM lParam);
+
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 지원입니다.
 
 
@@ -41,4 +58,7 @@ protected:
 public:
 	afx_msg void OnBnClickedButton2();
 	afx_msg void OnBnClickedButton3();
+	afx_msg void OnBnClickedButton4();
+	afx_msg void OnBnClickedButton5();
+	//afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
 };

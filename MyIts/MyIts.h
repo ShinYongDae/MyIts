@@ -10,6 +10,7 @@
 
 #include "resource.h"		// 주 기호입니다.
 
+#define WM_EDIT_CLICK				(WM_USER+0)
 
 // CMyItsApp:
 // 이 클래스의 구현에 대해서는 MyIts.cpp을 참조하십시오.

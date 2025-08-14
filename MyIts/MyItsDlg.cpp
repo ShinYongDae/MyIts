@@ -22,6 +22,7 @@ CMyItsDlg::CMyItsDlg(CWnd* pParent /*=NULL*/)
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 	m_pReelmap = NULL;
 	m_bConverse = FALSE;
+	m_nIdxItsFile = -1;
 }
 
 CMyItsDlg::~CMyItsDlg()
@@ -43,6 +44,10 @@ BEGIN_MESSAGE_MAP(CMyItsDlg, CDialog)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BUTTON2, &CMyItsDlg::OnBnClickedButton2)
 	ON_BN_CLICKED(IDC_BUTTON3, &CMyItsDlg::OnBnClickedButton3)
+	ON_BN_CLICKED(IDC_BUTTON4, &CMyItsDlg::OnBnClickedButton4)
+	ON_BN_CLICKED(IDC_BUTTON5, &CMyItsDlg::OnBnClickedButton5)
+	ON_MESSAGE(WM_EDIT_CLICK, wmClickEdit)
+	ON_WM_LBUTTONDOWN()
 END_MESSAGE_MAP()
 
 
@@ -58,6 +63,7 @@ BOOL CMyItsDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 작은 아이콘을 설정합니다.
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
+	InitEdit();
 	InitReelmap();
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
@@ -99,35 +105,157 @@ HCURSOR CMyItsDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+void CMyItsDlg::InitEdit()
+{
+	myEdit.SubclassDlgItem(IDC_EDIT4, this);
+	myEdit.SetHwnd(this->GetSafeHwnd(), IDC_EDIT4);
+	myEdit.SetFontName(_T("Arial"));
+	myEdit.SetFontSize(12);
+	myEdit.SetFontBold(FALSE);
+	myEdit.SetTextColor(RGB_BLACK);
+	myEdit.SetBkColor(RGB_WHITE);
+	myEdit.SetText(_T(""));
+	myEdit.SetFont((CFont*)&myEdit.m_font, TRUE);
+}
 
 void CMyItsDlg::InitReelmap()
 {
+	CString sPathInfo = _T("C:\\R2RSet\\Info0.bin");
 	CString sPathRmap = _T("C:\\R2RSet\\Reelmap0.bin");
 	CString sPathYield = _T("C:\\R2RSet\\Yield0.bin");
 	CString sPathMark = _T("C:\\R2RSet\\Mark0.bin");
-	m_pReelmap = new CSimpleReelmap(sPathRmap, sPathYield, sPathMark, this);
-	m_pReelmap->Init(20, 30, 3);
+	m_pReelmap = new CSimpleReelmap(RMapUp, sPathInfo, sPathRmap, sPathYield, sPathMark, this);
+
+	stRmapInfo stInfo;
+	stInfo.m_sMcName = _T("BAO14");
+	stInfo.m_sUserName = _T("BAO14");
+	stInfo.m_sModel = _T("L231115S31");
+	stInfo.m_sLot = _T("200125279");
+	stInfo.m_sLayer = _T("TOP-3-050");
+	stInfo.m_sLayerUp = _T("TOP-3-050");
+	stInfo.m_sLayerDn = _T("BOTTOM-4-050");
+	stInfo.m_sItsCode = _T("200125279");
+	stInfo.m_sProcessCode = _T("VS90");
+	stInfo.m_nActionCode = 3;
+	stInfo.m_nMaxRow = 20;
+	stInfo.m_nMaxCol = 30;
+	stInfo.m_nMaxStrip = 4;
+	stInfo.m_nMaxDefCode = 30;
+	m_pReelmap->Init(stInfo);
+
+	DispIts();
 }
 
-void CMyItsDlg::Disp()
+void CMyItsDlg::Disp(int nIdx)
 {
 	if (!m_pReelmap) return;
 
 	CString sCurr = _T("");
 	CString sDisp = _T("");
-	if(m_bConverse)
+
+	if (nIdx == 0)
+	{
+		DispReelmap();
+		DispReelmapResult();
+	}
+	else if (nIdx == 1)
+	{
+		DispIts();
+	}
+	else if (nIdx == 2)
+	{
+		DispSapp3();
+	}
+}
+
+void CMyItsDlg::DispReelmap()
+{
+	if (!m_pReelmap) return;
+
+	CString sCurr = _T("");
+	CString sDisp = _T("");
+
+	if (m_bConverse)
 		sDisp = m_pReelmap->GetTextConverse();
 	else
 		sDisp = m_pReelmap->GetTextArPcr();
+
 	GetDlgItem(IDC_EDIT1)->GetWindowText(sCurr);
 	if (sCurr != sDisp)
 		GetDlgItem(IDC_EDIT1)->SetWindowText(sDisp);
 
+}
+
+void CMyItsDlg::DispReelmapResult()
+{
+	if (!m_pReelmap) return;
+
+	CString sCurr = _T("");
+	CString sDisp = _T("");
+
 	sDisp = m_pReelmap->GetTextResult();
+
 	GetDlgItem(IDC_EDIT2)->GetWindowText(sCurr);
 	if (sCurr != sDisp)
 		GetDlgItem(IDC_EDIT2)->SetWindowText(sDisp);
 }
+
+void CMyItsDlg::DispIts()
+{
+	if (!m_pReelmap) return;
+
+	CString sCurr = _T("");
+	CString sDisp = _T("");
+
+	sDisp = m_pReelmap->GetTextListItsFile();
+
+	GetDlgItem(IDC_EDIT4)->GetWindowText(sCurr);
+	if (sCurr != sDisp)
+		GetDlgItem(IDC_EDIT4)->SetWindowText(sDisp);
+}
+
+void CMyItsDlg::DispItsResult()
+{
+	if (!m_pReelmap) return;
+
+	CString sCurr = _T("");
+	CString sDisp = _T("");
+
+	sDisp = m_pReelmap->GetTextItsFile(m_nIdxItsFile);
+
+	GetDlgItem(IDC_EDIT2)->GetWindowText(sCurr);
+	if (sCurr != sDisp)
+		GetDlgItem(IDC_EDIT2)->SetWindowText(sDisp);
+}
+
+void CMyItsDlg::DispSapp3()
+{
+	if (!m_pReelmap) return;
+
+	CString sCurr = _T("");
+	CString sDisp = _T("");
+
+	//sDisp = m_pReelmap->GetTextListItsFile();
+
+	GetDlgItem(IDC_EDIT3)->GetWindowText(sCurr);
+	if (sCurr != sDisp)
+		GetDlgItem(IDC_EDIT3)->SetWindowText(sDisp);
+}
+
+void CMyItsDlg::DispSapp3Result()
+{
+	if (!m_pReelmap) return;
+
+	CString sCurr = _T("");
+	CString sDisp = _T("");
+
+	//sDisp = m_pReelmap->GetTextListItsFile();
+
+	GetDlgItem(IDC_EDIT2)->GetWindowText(sCurr);
+	if (sCurr != sDisp)
+		GetDlgItem(IDC_EDIT2)->SetWindowText(sDisp);
+}
+
 
 void CMyItsDlg::OnBnClickedButton2()
 {
@@ -135,7 +263,7 @@ void CMyItsDlg::OnBnClickedButton2()
 	if(m_pReelmap)
 		m_pReelmap->Load();
 	m_bConverse = FALSE;
-	Disp();
+	Disp(0);
 }
 
 
@@ -143,5 +271,83 @@ void CMyItsDlg::OnBnClickedButton3()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
 	m_bConverse = TRUE;
-	Disp();
+	Disp(0); // Reelmap
 }
+
+
+void CMyItsDlg::OnBnClickedButton4()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	int nSerial = 0;
+	CString str;
+	GetDlgItem(IDC_EDIT3)->GetWindowText(str);
+	nSerial = _tstoi(str);
+	if (m_pReelmap)
+	{
+		m_pReelmap->MakeIts(nSerial);
+		Disp(1); // ITS
+	}
+}
+
+
+void CMyItsDlg::OnBnClickedButton5()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	Disp(2); // LOSS
+}
+
+
+LRESULT CMyItsDlg::wmClickEdit(WPARAM wParam, LPARAM lParam)
+{
+	if(!lParam) return (LRESULT)0L;
+	CEdit* pControl = (CEdit*)GetDlgItem(IDC_EDIT4);
+	//UINT nFlags = (UINT)wParam;
+	//CPoint point;
+	//point.y = HIWORD(lParam);
+	//point.x = LOWORD(lParam);
+	//CPoint ptClient = point;
+	//int nCharIndex = pControl->CharFromPos(ptClient);
+
+	int nLineIndex = pControl->LineFromChar(-1); // 현재 캐럿이 있는 라인번호를 반환
+	CString sData = m_pReelmap->GetTextListItsFile();
+	CString sLine;
+	int nPos, nLine = 0;
+	int nCharSt = 0, nCharEd = 0;
+	int nSize = sData.GetLength();
+	while (nSize > 0)
+	{
+		nPos = sData.Find('\n', 0);
+		sLine = sData.Left(nPos);
+		sData.Delete(0, nPos + 1);
+		nSize = nSize - nPos - 1;
+		nCharEd = nCharSt + nPos - 1;
+		if (nLine == nLineIndex)
+		{
+			m_nIdxItsFile = nLine;
+			DispItsResult();
+			pControl->SetSel(nCharSt, nCharEd);
+			break;
+		}
+		nCharSt += nPos + 1;
+		nLine++;
+	}
+
+	return (LRESULT)0L;
+}
+
+
+//void CMyItsDlg::OnLButtonDown(UINT nFlags, CPoint point)
+//{
+//	// TODO: 여기에 메시지 처리기 코드를 추가 및/또는 기본값을 호출합니다.
+//	CEdit* pControl = (CEdit*)GetDlgItem(IDC_EDIT4);
+//	//CRect rectEdit;
+//	//pControl->GetWindowRect(&rectEdit);
+//	//ScreenToClient(&rectEdit);
+//	//CPoint ptClient = point;
+//	//ptClient.Offset(-rectEdit.left, -rectEdit.top); // x, y에 일정한 값을 더하는 역할
+//	CPoint ptClient = point;
+//	int nCharIndex = pControl->CharFromPos(ptClient);
+//	int nLineIndex = pControl->LineFromChar(nCharIndex);
+//
+//	CDialog::OnLButtonDown(nFlags, point);
+//}

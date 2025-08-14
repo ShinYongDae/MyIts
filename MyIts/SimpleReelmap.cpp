@@ -11,11 +11,12 @@
 
 IMPLEMENT_DYNAMIC(CSimpleReelmap, CWnd)
 
-CSimpleReelmap::CSimpleReelmap(CString sPathRmap, CString sPathYield, CString sPathMark, CWnd* pParent/*=NULL*/)
+CSimpleReelmap::CSimpleReelmap(int nLayer, CString sPathInfo, CString sPathRmap, CString sPathYield, CString sPathMark, CWnd* pParent/*=NULL*/)
 {
 	m_pParent = pParent;
 	if (pParent)
 		m_hParent = pParent->GetSafeHwnd();
+	m_sPathInfo = sPathInfo;
 	m_sPathRmap = sPathRmap;
 	m_sPathYield = sPathYield;
 	m_sPathMark = sPathMark;
@@ -27,10 +28,13 @@ CSimpleReelmap::CSimpleReelmap(CString sPathRmap, CString sPathYield, CString sP
 	m_nMkedPcs[0] = 0;
 	m_nMkedPcs[1] = 0;
 
+	m_nLayer = nLayer;
+
 	InitColor();
 	InitDef();
 
 	LoadDefectTableIni();
+	LoadSapp3CodeIni();
 	Free();	
 	CreateWndForm(WS_CHILD | WS_OVERLAPPED);
 	ThreadStart();
@@ -162,11 +166,12 @@ BOOL CSimpleReelmap::ThreadIsAlive()
 	return m_bThreadAlive;
 }
 
-void CSimpleReelmap::Init(int nMaxRow, int nMaxCol, int nActionCode)
+void CSimpleReelmap::Init(stRmapInfo stInfo) //int nMaxRow, int nMaxCol, int nActionCode
 {
-	m_stInfo.m_nMaxRow = nMaxRow;
-	m_stInfo.m_nMaxCol = nMaxCol;
-	m_stInfo.m_nActionCode = nActionCode;
+	m_stInfo = stInfo;
+	//m_stInfo.m_nMaxRow = stInfo.m_nMaxRow;
+	//m_stInfo.m_nMaxRow = stInfo.m_nMaxRow;
+	//m_stInfo.m_nActionCode = stInfo.m_nActionCode;
 }
 
 BOOL CSimpleReelmap::IsShare(int &nSerial)
@@ -490,27 +495,43 @@ CString CSimpleReelmap::GetTextResult()
 	sData = _T("");
 	sData += _T("1. 일반 정보\r\n");
 
-	sData += _T("\t모 델 : \t");
+	sData += _T("\t장비호기명 : ");
+	sData += sMcName;
+	sData += _T("\r\n");
+	sData += _T("\t운  용  자  : ");
+	sData += sUserName;
+	sData += _T("\r\n");
+	sData += _T("\t모      델  : ");
 	sData += sModel;
 	sData += _T("\r\n");
-	sData += _T("\t로 트 : \t");
+	sData += _T("\t로      트  : ");
 	sData += sLot;
 	sData += _T("\r\n");
-	sData += _T("\t상면 레이어 : \t");
+	sData += _T("\t상면레이어 : ");
 	sData += sLayerUp;
 	sData += _T("\r\n");
-	sData += _T("\t하면 레이어 : \t");
+	sData += _T("\t하면레이어 : ");
 	sData += sLayerDn;
 	sData += _T("\r\n");
-	sData += _T("\t시작시간 : \t");
+	sData += _T("\tITS 코드  : ");
+	sData += sItsCode;
+	sData += _T("\r\n");
+	sData += _T("\t공정 코드  : ");
+	sData += sProcessCode;
+	sData += _T("\r\n");
+	sData += _T("\t전체 속도  : ");
+	sTemp.Format(_T("%.2f"), dEntireSpeed);
+	sData += sTemp;
+	sData += _T("\r\n");
+	sData += _T("\t작업 시작  : ");
 	sTemp.Format(_T("%s"), timeLotStart.Format(_T("%Y/%m/%d %H:%M:%S")));
 	sData += sTemp;
 	sData += _T("\r\n");
-	sData += _T("\t진행시간 : \t");
+	sData += _T("\t진행 시간  : ");
 	sTemp.Format(_T("%s"), time.Format(_T("%H:%M:%S")));
 	sData += sTemp;
 	sData += _T("\r\n");
-	sData += _T("\t종료시간 : \t");
+	sData += _T("\t작업 종료  : ");
 	sTemp.Format(_T("%s"), timeLotEnd.Format(_T("%Y/%m/%d %H:%M:%S")));
 	sData += sTemp;
 	sData += _T("\r\n");
@@ -1212,13 +1233,15 @@ CString CSimpleReelmap::GetTextConverse()
 	sData += sTemp;
 	sTemp.Format(_T("하면레이어 : %s\r\n\r\n"), m_stInfo.m_sLayerDn);
 	sData += sTemp;
+	sTemp.Format(_T("ITS 코드  : %s\r\n"), m_stInfo.m_sItsCode);
+	sData += sTemp;
 	sTemp.Format(_T("공정 코드  : %s\r\n"), m_stInfo.m_sProcessCode);
 	sData += sTemp;
 	sTemp.Format(_T("전체 속도  : %.2f\r\n\r\n"), m_stInfo.m_dEntireSpeed);
 	sData += sTemp;
 	sTemp.Format(_T("작업 시작  : %s\r\n"), m_stInfo.m_timeLotStart.Format(_T("%Y/%m/%d %H:%M:%S")));
 	sData += sTemp;
-	sTemp.Format(_T("작업 시간  : %s\r\n"), time.Format(_T("%H:%M:%S")));
+	sTemp.Format(_T("진행 시간  : %s\r\n"), time.Format(_T("%H:%M:%S")));
 	sData += sTemp;
 	sTemp.Format(_T("작업 종료  : %s\r\n\r\n"), m_stInfo.m_timeLotEnd.Format(_T("%Y/%m/%d %H:%M:%S")));
 	sData += sTemp;
@@ -1490,20 +1513,21 @@ BOOL CSimpleReelmap::Add(int nSerial)
 
 BOOL CSimpleReelmap::Save()
 {
-	BOOL bRtn[3] = { 0, 0, 0 };
-	bRtn[0] = SaveRmap();
-	bRtn[1] = SaveYield();
-	bRtn[2] = SaveMark();
+	BOOL bRtn[4] = { 0, 0, 0, 0 };
+	bRtn[0] = SaveInfo();
+	bRtn[1] = SaveRmap();
+	bRtn[2] = SaveYield();
+	bRtn[3] = SaveMark();
 
-	return (bRtn[0] && bRtn[1] && bRtn[2]);
+	return (bRtn[0] && bRtn[1] && bRtn[2] && bRtn[3]);
 }
 
-BOOL CSimpleReelmap::SaveRmap()
+BOOL CSimpleReelmap::SaveInfo()
 {
 	CFile cfile;
-	if (!cfile.Open(m_sPathRmap, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary | CFile::shareDenyNone, NULL))
+	if (!cfile.Open(m_sPathInfo, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary | CFile::shareDenyNone, NULL))
 	{
-		AfxMessageBox(_T("Fail to save Reelmap."));
+		AfxMessageBox(_T("Fail to save Info."));
 		return FALSE;
 	}
 
@@ -1516,6 +1540,39 @@ BOOL CSimpleReelmap::SaveRmap()
 	CString sLayerDn = m_stInfo.m_sLayerDn;
 	CString sItsCode = m_stInfo.m_sItsCode;
 	CString sProcessCode = m_stInfo.m_sProcessCode;
+
+	sMcName += ",";
+	cfile.Write(sMcName, sMcName.GetLength() * sizeof(TCHAR));
+	sUserName += ",";
+	cfile.Write(sUserName, sUserName.GetLength() * sizeof(TCHAR));
+	sModel += ",";
+	cfile.Write(sModel, sModel.GetLength() * sizeof(TCHAR));
+	sLot += ",";
+	cfile.Write(sLot, sLot.GetLength() * sizeof(TCHAR));
+	sLayer += ",";
+	cfile.Write(sLayer, sLayer.GetLength() * sizeof(TCHAR));
+	sLayerUp += ",";
+	cfile.Write(sLayerUp, sLayerUp.GetLength() * sizeof(TCHAR));
+	sLayerDn += ",";
+	cfile.Write(sLayerDn, sLayerDn.GetLength() * sizeof(TCHAR));
+	sItsCode += ",";
+	cfile.Write(sItsCode, sItsCode.GetLength() * sizeof(TCHAR));
+	sItsCode += "\r\n";
+	cfile.Write(sProcessCode, sProcessCode.GetLength() * sizeof(TCHAR));
+
+	cfile.Close();
+	return TRUE;
+}
+
+BOOL CSimpleReelmap::SaveRmap()
+{
+	CFile cfile;
+	if (!cfile.Open(m_sPathRmap, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary | CFile::shareDenyNone, NULL))
+	{
+		AfxMessageBox(_T("Fail to save Reelmap."));
+		return FALSE;
+	}
+
 	double dEntireSpeed = m_stInfo.m_dEntireSpeed;
 	COleDateTime timeLotStart = m_stInfo.m_timeLotStart;
 	COleDateTime timeLotRun = m_stInfo.m_timeLotRun;
@@ -1527,15 +1584,6 @@ BOOL CSimpleReelmap::SaveRmap()
 	int nMaxStrip = m_stInfo.m_nMaxStrip;
 	int nMaxDefCode = m_stInfo.m_nMaxDefCode;
 
-	cfile.Write(&sMcName, sMcName.GetLength() * sizeof(TCHAR));
-	cfile.Write(&sUserName, sUserName.GetLength() * sizeof(TCHAR));
-	cfile.Write(&sModel, sModel.GetLength() * sizeof(TCHAR));
-	cfile.Write(&sLot, sLot.GetLength() * sizeof(TCHAR));
-	cfile.Write(&sLayer, sLayer.GetLength() * sizeof(TCHAR));
-	cfile.Write(&sLayerUp, sLayerUp.GetLength() * sizeof(TCHAR));
-	cfile.Write(&sLayerDn, sLayerDn.GetLength() * sizeof(TCHAR));
-	cfile.Write(&sItsCode, sItsCode.GetLength() * sizeof(TCHAR));
-	cfile.Write(&sProcessCode, sProcessCode.GetLength() * sizeof(TCHAR));
 	cfile.Write(&dEntireSpeed, sizeof(double));
 	cfile.Write(&timeLotStart, sizeof(COleDateTime));
 	cfile.Write(&timeLotRun, sizeof(COleDateTime));
@@ -1686,18 +1734,118 @@ BOOL CSimpleReelmap::SaveMark()
 
 BOOL CSimpleReelmap::Load()
 {
-	BOOL bRtn[3] = { 0, 0, 0 };
-	bRtn[0] = LoadRmap();
-	bRtn[1] = LoadYield();
-	bRtn[2] = LoadMark();
+	BOOL bRtn[4] = { 0, 0, 0, 0 };
+	bRtn[0] = LoadInfo();
+	bRtn[1] = LoadRmap();
+	bRtn[2] = LoadYield();
+	bRtn[3] = LoadMark();
 
-	return (bRtn[0] && bRtn[1] && bRtn[0]);
+	return (bRtn[0] && bRtn[1] && bRtn[2] && bRtn[3]);
 }
 
-//BOOL CSimpleReelmap::Converse()
-//{
-//	return TRUE;
-//}
+BOOL CSimpleReelmap::LoadInfo()
+{
+	int i, k;
+	int nCount = m_arPcr.GetSize();
+	if (nCount > 0)
+	{
+		CPcr Pcr;
+		for (i = 0; i < nCount; i++)
+		{
+			Pcr = m_arPcr.GetAt(i);
+			Pcr.Free();
+		}
+		m_arPcr.RemoveAll();
+	}
+
+	CString sMcName;
+	CString sUserName;
+	CString sModel;
+	CString sLot;
+	CString sLayer;
+	CString sLayerUp;
+	CString sLayerDn;
+	CString sItsCode;
+	CString sProcessCode;
+
+	CFile cfile;
+	if (!cfile.Open(m_sPathInfo, CFile::modeRead | CFile::shareDenyNone, NULL))
+	{
+		AfxMessageBox(_T("Fail to load Info."));
+		return FALSE;
+	}
+	BOOL bExist = TRUE;
+	CString str, sData=_T("");
+	CArchive ar(&cfile, CArchive::load);
+	while (bExist)
+	{
+		bExist = ar.ReadString(str);
+		if (bExist)
+			sData += (str + '\n');
+	}
+	ar.Close();
+	cfile.Close();
+
+	int nPos;
+	int nSize = sData.GetLength();
+	// McName
+	nPos = sData.Find(',', 0);
+	sMcName = sData.Left(nPos);
+	sData.Delete(0, nPos + 1);
+	nSize = nSize - nPos - 1;
+	// UserName
+	nPos = sData.Find(',', 0);
+	sUserName = sData.Left(nPos);
+	sData.Delete(0, nPos + 1);
+	nSize = nSize - nPos - 1;
+	// Model
+	nPos = sData.Find(',', 0);
+	sModel = sData.Left(nPos);
+	sData.Delete(0, nPos + 1);
+	nSize = nSize - nPos - 1;
+	// Lot
+	nPos = sData.Find(',', 0);
+	sLot = sData.Left(nPos);
+	sData.Delete(0, nPos + 1);
+	nSize = nSize - nPos - 1;
+	// Layer
+	nPos = sData.Find(',', 0);
+	sLayer = sData.Left(nPos);
+	sData.Delete(0, nPos + 1);
+	nSize = nSize - nPos - 1;
+	// LayerUp
+	nPos = sData.Find(',', 0);
+	sLayerUp = sData.Left(nPos);
+	sData.Delete(0, nPos + 1);
+	nSize = nSize - nPos - 1;
+	// LayerDn
+	nPos = sData.Find(',', 0);
+	sLayerDn = sData.Left(nPos);
+	sData.Delete(0, nPos + 1);
+	nSize = nSize - nPos - 1;
+	// ItsCode
+	nPos = sData.Find(',', 0);
+	sItsCode = sData.Left(nPos);
+	sData.Delete(0, nPos + 1);
+	nSize = nSize - nPos - 1;
+	// ProcessCode
+	nPos = sData.Find('\n', 0);
+	sProcessCode = sData.Left(nPos);
+	sData.Delete(0, nPos + 1);
+	nSize = nSize - nPos - 1;
+
+	m_stInfo.m_sMcName = sMcName;
+	m_stInfo.m_sUserName = sUserName;
+	m_stInfo.m_sModel = sModel;
+	m_stInfo.m_sLot = sLot;
+	m_stInfo.m_sLayer = sLayer;
+	m_stInfo.m_sLayerUp = sLayerUp;
+	m_stInfo.m_sLayerDn = sLayerDn;
+	m_stInfo.m_sItsCode = sItsCode;
+	m_stInfo.m_sProcessCode = sProcessCode;
+
+	return TRUE;
+}
 
 BOOL CSimpleReelmap::LoadRmap()
 {
@@ -1715,21 +1863,12 @@ BOOL CSimpleReelmap::LoadRmap()
 	}
 
 	CFile cfile;
-	if (!cfile.Open(m_sPathRmap, CFile::modeRead | CFile::typeBinary | CFile::shareDenyNone, NULL))
+	if (!cfile.Open(m_sPathRmap, CFile::modeRead | CFile::shareDenyNone, NULL))
 	{
 		AfxMessageBox(_T("Fail to load Rmap."));
 		return FALSE;
 	}
 
-	CString sMcName;
-	CString sUserName;
-	CString sModel;
-	CString sLot;
-	CString sLayer;
-	CString sLayerUp;
-	CString sLayerDn;
-	CString sItsCode;
-	CString sProcessCode;
 	double dEntireSpeed;
 	COleDateTime timeLotStart;
 	COleDateTime timeLotRun;
@@ -1741,15 +1880,6 @@ BOOL CSimpleReelmap::LoadRmap()
 	int nMaxStrip;
 	int nMaxDefCode;
 
-	cfile.Read((void *)&sMcName, sMcName.GetLength() * sizeof(TCHAR));
-	cfile.Read((void *)&sUserName, sUserName.GetLength() * sizeof(TCHAR));
-	cfile.Read((void *)&sModel, sModel.GetLength() * sizeof(TCHAR));
-	cfile.Read((void *)&sLot, sLot.GetLength() * sizeof(TCHAR));
-	cfile.Read((void *)&sLayer, sLayer.GetLength() * sizeof(TCHAR));
-	cfile.Read((void *)&sLayerUp, sLayerUp.GetLength() * sizeof(TCHAR));
-	cfile.Read((void *)&sLayerDn, sLayerDn.GetLength() * sizeof(TCHAR));
-	cfile.Read((void *)&sItsCode, sItsCode.GetLength() * sizeof(TCHAR));
-	cfile.Read((void *)&sProcessCode, sProcessCode.GetLength() * sizeof(TCHAR));
 	cfile.Read((void *)&dEntireSpeed, sizeof(double));
 	cfile.Read((void *)&timeLotStart, sizeof(COleDateTime));
 	cfile.Read((void *)&timeLotRun, sizeof(COleDateTime));
@@ -1764,15 +1894,6 @@ BOOL CSimpleReelmap::LoadRmap()
 	int nTotalPcr;
 	cfile.Read((void *)&nTotalPcr, sizeof(int));
 
-	m_stInfo.m_sMcName = sMcName;
-	m_stInfo.m_sUserName = sUserName;
-	m_stInfo.m_sModel = sModel;
-	sLot = m_stInfo.m_sLot;
-	m_stInfo.m_sLayer = sLayer;
-	m_stInfo.m_sLayerUp = sLayerUp;
-	m_stInfo.m_sLayerDn = sLayerDn;
-	m_stInfo.m_sItsCode = sItsCode;
-	m_stInfo.m_sProcessCode = sProcessCode;
 	m_stInfo.m_dEntireSpeed = dEntireSpeed;
 	m_stInfo.m_timeLotStart = timeLotStart;
 	m_stInfo.m_timeLotRun = timeLotRun;
@@ -1832,6 +1953,7 @@ BOOL CSimpleReelmap::LoadRmap()
 		m_stInfo.m_nLastSerial = nSerial;
 	}
 
+	cfile.Close();
 	return TRUE;
 }
 
@@ -1954,9 +2076,67 @@ BOOL CSimpleReelmap::LoadMark()
 	return TRUE;
 }
 
-BOOL CSimpleReelmap::LoadDefectTableIni()
+BOOL CSimpleReelmap::LoadSapp3CodeIni()
 {
-	TCHAR szData[200];
+	CString sPath = PATH_SAPP3;
+	TCHAR szData[MAX_PATH];
+
+	if (0 < ::GetPrivateProfileString(_T("Sapp3Code"), _T("OPEN"), NULL, szData, sizeof(szData), sPath))
+		m_nSapp3Code[Sapp3Open] = _ttoi(szData);
+	else
+		m_nSapp3Code[Sapp3Open] = 0;
+
+	if (0 < ::GetPrivateProfileString(_T("Sapp3Code"), _T("SHORT"), NULL, szData, sizeof(szData), sPath))
+		m_nSapp3Code[Sapp3Short] = _ttoi(szData);
+	else
+		m_nSapp3Code[Sapp3Short] = 0;
+
+	if (0 < ::GetPrivateProfileString(_T("Sapp3Code"), _T("USHORT"), NULL, szData, sizeof(szData), sPath))
+		m_nSapp3Code[Sapp3UShort] = _ttoi(szData);
+	else
+		m_nSapp3Code[Sapp3UShort] = 0;
+
+	if (0 < ::GetPrivateProfileString(_T("Sapp3Code"), _T("NICK"), NULL, szData, sizeof(szData), sPath))
+		m_nSapp3Code[Sapp3Nick] = _tstoi(szData);
+	else
+		m_nSapp3Code[Sapp3Nick] = 0;
+
+	if (0 < ::GetPrivateProfileString(_T("Sapp3Code"), _T("SPACE_EXTRA_PROTRUSION"), NULL, szData, sizeof(szData), sPath))
+		m_nSapp3Code[Sapp3SpaceExtraProt] = _ttoi(szData);
+	else
+		m_nSapp3Code[Sapp3SpaceExtraProt] = 0;
+
+	if (0 < ::GetPrivateProfileString(_T("Sapp3Code"), _T("PINHOLE"), NULL, szData, sizeof(szData), sPath))
+		m_nSapp3Code[Sapp3PinHole] = _ttoi(szData);
+	else
+		m_nSapp3Code[Sapp3PinHole] = 0;
+
+	if (0 < ::GetPrivateProfileString(_T("Sapp3Code"), _T("PAD"), NULL, szData, sizeof(szData), sPath))
+		m_nSapp3Code[Sapp3Pad] = _ttoi(szData);
+	else
+		m_nSapp3Code[Sapp3Pad] = 0;
+
+	if (0 < ::GetPrivateProfileString(_T("Sapp3Code"), _T("HOPEN"), NULL, szData, sizeof(szData), sPath))
+		m_nSapp3Code[Sapp3HOpen] = _ttoi(szData);
+	else
+		m_nSapp3Code[Sapp3HOpen] = 0;
+
+	if (0 < ::GetPrivateProfileString(_T("Sapp3Code"), _T("HMISS_HPOS_HBAD"), NULL, szData, sizeof(szData), sPath))
+		m_nSapp3Code[Sapp3HMissHPosHBad] = _tstoi(szData);
+	else
+		m_nSapp3Code[Sapp3HMissHPosHBad] = 0;
+
+	if (0 < ::GetPrivateProfileString(_T("Sapp3Code"), _T("VHOPEN_NOVH_VHALIGN_VHDEF"), NULL, szData, sizeof(szData), sPath))
+		m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH] = _tstoi(szData);
+	else
+		m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH] = 0;
+
+	return TRUE;
+}
+
+BOOL CSimpleReelmap::LoadDefectTableIni()
+{	
+	TCHAR szData[MAX_PATH];
 	TCHAR sep[] = { _T(",;\r\n\t") };
 	CString sIdx, sVal;
 	int k;
@@ -2279,4 +2459,340 @@ int CSimpleReelmap::GetPcrIdx(int nCam)
 	}
 
 	return nPcrIdx;
+}
+
+CString CSimpleReelmap::GetTimeIts()
+{
+	CString sData;
+	COleDateTime oleDate = COleDateTime::GetCurrentTime();
+	sData.Format(_T("%s"), oleDate.Format(_T("%Y%m%d%H%M%S")));
+	return sData;
+}
+
+CString CSimpleReelmap::GetPathIts(int nSerial)
+{
+	CString sPath = _T("");
+	CString str;
+	CString sPathFolder = PATH_ITS_FOLDER;
+	CString sTime = GetTimeIts();
+
+	switch (m_nLayer)
+	{
+	case RMapUp: // 외층 Top
+		str.Format(_T("%s_L2_%04d_T_%s_%s_AVR01_%s.dat"), m_stInfo.m_sItsCode, nSerial, m_stInfo.m_sUserName, m_stInfo.m_sMcName, sTime);
+		sPath.Format(_T("%s\\%s"), sPathFolder, str);
+		break;
+	case RMapDn: // 외층 Bottom
+		str.Format(_T("%s_L2_%04d_B_%s_%s_AVR01_%s.dat"), m_stInfo.m_sItsCode, nSerial, m_stInfo.m_sUserName, m_stInfo.m_sMcName, sTime);
+		sPath.Format(_T("%s\\%s"), sPathFolder, str);
+		break;
+	case RMapUpInner: // 내층 Top
+		str.Format(_T("%s_L1_%04d_T_%s_%s_AVR01_%s.dat"), m_stInfo.m_sItsCode, nSerial, m_stInfo.m_sUserName, m_stInfo.m_sMcName, sTime);
+		sPath.Format(_T("%s\\%s"), sPathFolder, str);
+		break;
+	case RMapDnInner: // 내층 Bottom
+		str.Format(_T("%s_L1_%04d_B_%s_%s_AVR01_%s.dat"), m_stInfo.m_sItsCode, nSerial, m_stInfo.m_sUserName, m_stInfo.m_sMcName, sTime);
+		sPath.Format(_T("%s\\%s"), sPathFolder, str);
+		break;
+	case RMapUpOutter: // 외층 Top
+		str.Format(_T("%s_L2_%04d_T_%s_%s_AVR01_%s.dat"), m_stInfo.m_sItsCode, nSerial, m_stInfo.m_sUserName, m_stInfo.m_sMcName, sTime);
+		sPath.Format(_T("%s\\%s"), sPathFolder, str);
+		break;
+	case RMapDnOutter: // 외층 Bottom
+		str.Format(_T("%s_L2_%04d_B_%s_%s_AVR01_%s.dat"), m_stInfo.m_sItsCode, nSerial, m_stInfo.m_sUserName, m_stInfo.m_sMcName, sTime);
+		sPath.Format(_T("%s\\%s"), sPathFolder, str);
+		break;
+	}
+
+	return sPath;
+}
+
+BOOL CSimpleReelmap::MakeIts(int nSerial)
+{
+	CString sPath = GetPathIts(nSerial);
+	CFileFind cFile;
+	if (cFile.FindFile(sPath))
+		DeleteFile(sPath);
+	CString sData = GetTextIts(nSerial);
+	CFile cfile;
+	if (!cfile.Open(sPath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyNone, NULL))
+	{
+		AfxMessageBox(_T("Fail to make ITS."));
+		return FALSE;
+	}
+	cfile.Write(sData, sData.GetLength() * sizeof(TCHAR));
+	cfile.Close();
+	return TRUE;
+}
+
+CString CSimpleReelmap::GetTextIts(int nSerial)
+{
+	CString sData = _T("");
+
+	CString sItsCode = m_stInfo.m_sItsCode;
+	int nNodeX = m_stInfo.m_nMaxCol;
+	int nNodeY = m_stInfo.m_nMaxRow;
+	int nStripY = nNodeY / MAX_STRIP; // Strip(1~4);
+
+	CPcr Pcr;
+	int nCount = m_arPcr.GetCount();
+	if (nCount < 1) return sData;
+
+	BOOL bExist = FALSE;
+	int i, nCurSerial;
+	for (i = 0; i < nCount; i++)
+	{
+		Pcr = m_arPcr.GetAt(i);
+		nCurSerial = Pcr.GetSerial();
+
+		if (nSerial == nCurSerial)
+		{
+			bExist = TRUE;
+			break;
+		}
+	}
+	if(!bExist) return sData;
+
+	CString str = _T(""), sSide = _T(""), sTemp = _T("");
+	int nTotStrip[4] = { 0 };
+	int nTotVerifyed = 0;
+
+	CString sStripA = _T("");
+	CString sStripB = _T("");
+	CString sStripC = _T("");
+	CString sStripD = _T("");
+
+	switch (m_nLayer)
+	{
+	case RMapUp:
+		sSide = _T("T");
+		break;
+	case RMapDn:
+		sSide = _T("B");
+		break;
+	case RMapUpInner:
+		sSide = _T("T");
+		break;
+	case RMapDnInner:
+		sSide = _T("B");
+		break;
+	}
+
+	int nR, nC;
+	int nPcsId, nMkCode, nDefCode;
+	int nTotDef = Pcr.GetTotalDef();
+	for (i = 0; i < nTotDef; i++)
+	{
+		nPcsId = Pcr.GetPcsId(i);
+		if (GetMatrix(nPcsId, nR, nC))
+		{
+			nMkCode = Pcr.GetMarkingCode(i);
+			nDefCode = Pcr.GetDefCode(i);
+			if (nDefCode > 0 && nMkCode != -2)
+			{
+				if (nR < nStripY)			// Strip A
+				{
+					nTotStrip[0]++;
+					str.Format(_T("%s,%04d,%s,A,%d,%d,B%d\n"), sItsCode, nSerial, sSide, nC + 1, nR + 1, GetItsDefCode(nDefCode));
+					sStripA += str;
+				}
+				else if (nR < 2 * nStripY)	// Strip B
+				{
+					nTotStrip[1]++;
+					str.Format(_T("%s,%04d,%s,B,%d,%d,B%d\n"), sItsCode, nSerial, sSide, nC + 1, nR + 1, GetItsDefCode(nDefCode));
+					sStripB += str;
+				}
+				else if (nR < 3 * nStripY)	// Strip C
+				{
+					nTotStrip[2]++;
+					str.Format(_T("%s,%04d,%s,C,%d,%d,B%d\n"), sItsCode, nSerial, sSide, nC + 1, nR + 1, GetItsDefCode(nDefCode));
+					sStripC += str;
+				}
+				else if (nR < 4 * nStripY)	// Strip D
+				{
+					nTotStrip[3]++;
+					str.Format(_T("%s,%04d,%s,D,%d,%d,B%d\n"), sItsCode, nSerial, sSide, nC + 1, nR + 1, GetItsDefCode(nDefCode));
+					sStripD += str;
+				}
+				else
+					return sData;
+			}
+			else if (nDefCode > 0 && nMkCode == -2)
+			{
+				nTotVerifyed++;
+			}
+			else
+				return sData;
+		}
+	}	
+
+	// Strip A
+	str.Format(_T("%d,%s,%04d\n"), nTotDef - nTotVerifyed, sItsCode, nSerial);
+	sData = str;
+	str.Format(_T("%d,%s,%04d,%s,A\n"), nTotStrip[0], sItsCode, nSerial, sSide);
+	sData += str;
+	sData += sStripA;
+	str.Format(_T("%s,%04d,%s,A,EOS\n"), sItsCode, nSerial, sSide);
+	sData += str;
+
+	// Strip B
+	str.Format(_T("%d,%s,%04d,%s,B\n"), nTotStrip[1], sItsCode, nSerial, sSide);
+	sData += str;
+	sData += sStripB;
+	str.Format(_T("%s,%04d,%s,B,EOS\n"), sItsCode, nSerial, sSide);
+	sData += str;
+
+	// Strip C
+	str.Format(_T("%d,%s,%04d,%s,C\n"), nTotStrip[2], sItsCode, nSerial, sSide);
+	sData += str;
+	sData += sStripC;
+	str.Format(_T("%s,%04d,%s,C,EOS\n"), sItsCode, nSerial, sSide);
+	sData += str;
+
+	// Strip D
+	str.Format(_T("%d,%s,%04d,%s,D\n"), nTotStrip[3], sItsCode, nSerial, sSide);
+	sData += str;
+	sData += sStripD;
+	str.Format(_T("%s,%04d,%s,D,EOS\n"), sItsCode, nSerial, sSide);
+	sData += str;
+	str.Format(_T("%s,%04d,%s,EOP\n"), sItsCode, nSerial, sSide);
+	sData += str;
+
+	return sData;
+}
+
+int CSimpleReelmap::GetItsDefCode(int nDefCode)
+{
+	CString sDefCode;
+	sDefCode.Format(_T("%c"), m_cBigDef[nDefCode]);
+
+	// [Sapp3Code]
+	if (sDefCode == _T("N"))		//1 NICK = 137 -> m_nSapp3Code[SAPP3_NICK]
+		return m_nSapp3Code[Sapp3Nick];
+	else if (sDefCode == _T("D"))	//2 SPACE_EXTRA_PROTRUSION = 160 -> m_nSapp3Code[SAPP3_SPACE_EXTRA_PROTRUSION] : PROTRUSION
+		return m_nSapp3Code[Sapp3SpaceExtraProt];
+	else if (sDefCode == _T("A"))	//3 SPACE_EXTRA_PROTRUSION = 160 -> m_nSapp3Code[SAPP3_SPACE_EXTRA_PROTRUSION] : SPACE 
+		return m_nSapp3Code[Sapp3SpaceExtraProt];
+	else if (sDefCode == _T("O"))	//4 OPEN = 102 -> m_nSapp3Code[SAPP3_OPEN]
+		return m_nSapp3Code[Sapp3Open];
+	else if (sDefCode == _T("S"))	//5 SHORT = 129 -> m_nSapp3Code[SAPP3_SHORT]
+		return m_nSapp3Code[Sapp3Short];
+	else if (sDefCode == _T("U"))	//6 USHORT = 129 -> m_nSapp3Code[SAPP3_USHORT]
+		return m_nSapp3Code[Sapp3UShort];
+	else if (sDefCode == _T("I"))	//7 PINHOLE = 134 -> m_nSapp3Code[SAPP3_PINHOLE]
+		return m_nSapp3Code[Sapp3PinHole];
+	else if (sDefCode == _T("H"))	//8 HMISS_HPOS_HBAD = 309 -> m_nSapp3Code[	SAPP3_HMISS_HPOS_HBAD] : No Hole
+		return m_nSapp3Code[Sapp3HMissHPosHBad];
+	else if (sDefCode == _T("E"))	//9 SPACE_EXTRA_PROTRUSION = 160 -> m_nSapp3Code[SAPP3_SPACE_EXTRA_PROTRUSION] : EXTRA
+		return m_nSapp3Code[Sapp3SpaceExtraProt];
+	else if (sDefCode == _T("P"))	//10 PAD = 316 -> m_nSapp3Code[SAPP3_PAD]
+		return m_nSapp3Code[Sapp3Pad];
+	else if (sDefCode == _T("L"))	//11 HMISS_HPOS_HBAD = 309 -> m_nSapp3Code[SAPP3_HMISS_HPOS_HBAD] : Hole Align
+		return m_nSapp3Code[Sapp3HMissHPosHBad];
+	else if (sDefCode == _T("X"))	//12 POI -> m_nSapp3Code[SAPP3_SHORT]
+		return m_nSapp3Code[Sapp3Short];
+	else if (sDefCode == _T("T"))	//13 VH_POSITION = 379 -> m_nSapp3Code[SAPP3_VHOPEN_NOVH_VHALIGN_VHDEF] : VH Align
+		return m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH];
+	else if (sDefCode == _T("M"))	//14 VH_MISS = 379 -> m_nSapp3Code[SAPP3_VHOPEN_NOVH_VHALIGN_VHDEF] : No VH
+		return m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH];
+	else if (sDefCode == _T("F"))	//15 HMISS_HPOS_HBAD = 309 -> m_nSapp3Code[SAPP3_HMISS_HPOS_HBAD] : Hole Defect
+		return m_nSapp3Code[Sapp3HMissHPosHBad];
+	else if (sDefCode == _T("C"))	//16 HOPEN = 308 -> m_nSapp3Code[SAPP3_HOPEN]
+		return m_nSapp3Code[Sapp3HOpen];
+	else if (sDefCode == _T("G"))	//17 VH_OPEN = 379 -> m_nSapp3Code[SAPP3_VHOPEN_NOVH_VHALIGN_VHDEF] : VH Open
+		return m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH];
+	else if (sDefCode == _T("V"))	//18 VH_DEF = 379 -> m_nSapp3Code[SAPP3_VHOPEN_NOVH_VHALIGN_VHDEF] : VH Def
+		return m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH];
+	else if (sDefCode == _T("K"))	//19 E.Nick = 137 -> m_nSapp3Code[SAPP3_NICK]
+		return m_nSapp3Code[Sapp3Nick];
+	else if (sDefCode == _T("R"))	//20 E.Prot = 160 -> m_nSapp3Code[SAPP3_SPACE_EXTRA_PROTRUSION]
+		return m_nSapp3Code[Sapp3SpaceExtraProt];
+	else if (sDefCode == _T("B"))	//21 E.Space = 160 -> m_nSapp3Code[SAPP3_SPACE_EXTRA_PROTRUSION]
+		return m_nSapp3Code[Sapp3SpaceExtraProt];
+	else if (sDefCode == _T("J"))	//22 UDD1 = 160 -> m_nSapp3Code[SAPP3_SPACE_EXTRA_PROTRUSION]
+		return m_nSapp3Code[Sapp3SpaceExtraProt];
+	else if (sDefCode == _T("Q"))	//23 Narrow = 160 -> m_nSapp3Code[SAPP3_SPACE_EXTRA_PROTRUSION]
+		return m_nSapp3Code[Sapp3SpaceExtraProt];
+	else if (sDefCode == _T("W"))	//24 Wide = 160 -> m_nSapp3Code[SAPP3_SPACE_EXTRA_PROTRUSION]
+		return m_nSapp3Code[Sapp3SpaceExtraProt];
+	else if (sDefCode == _T("F"))	//25 FixedDefect = 0
+		return 0;
+	else if (sDefCode == _T("Y"))	//26 VH.Size = 379
+		return m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH];
+	else if (sDefCode == _T("Z"))	//27 VHEdge = 379
+		return m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH];
+	else if (sDefCode == _T("?"))	//28 Light = 0
+		return 0;
+
+	return 0;
+}
+
+CString CSimpleReelmap::GetTextListItsFile(int nIdx)
+{
+	CString sData = _T("");
+	CString sPathFolder = PATH_ITS_FOLDER;
+	CString sPath = sPathFolder + _T("\\*.dat");
+
+	CFileFind cFile;
+	BOOL bExist = cFile.FindFile(sPath);
+	if (!bExist) return sData; // pcr파일이 존재하지 않음.
+
+	int nPos, nLine = 0;
+	CString sFileName, sItsFile, sTemp;
+	while (bExist)
+	{
+		bExist = cFile.FindNextFile();
+		if (cFile.IsDots()) continue;
+		if (!cFile.IsDirectory())
+		{
+			// 파일명을 얻음.
+			sFileName = cFile.GetFileName();
+			nPos = sFileName.ReverseFind('.');
+			if (nPos > 0)
+			{
+				sItsFile = sFileName.Left(nPos);
+				sTemp.Format(_T("%s\r\n"), sItsFile);
+				sData += sTemp;
+
+				if (nLine == nIdx)
+					return sItsFile;
+				nLine++;
+			}
+		}
+	}
+
+	return sData;
+}
+
+CString CSimpleReelmap::GetTextItsFile(int nIdx)
+{
+	CString sLine, sData = _T("");
+	if (nIdx < 0) return sData;
+
+	CString sPathFolder = PATH_ITS_FOLDER;
+	CString sPath;
+	sPath.Format(_T("%s\\%s.dat"), sPathFolder, GetTextListItsFile(nIdx));
+
+	CFile cfile;
+	if (!cfile.Open(sPath, CFile::modeRead | CFile::shareDenyNone, NULL))
+	{
+		AfxMessageBox(_T("Fail to load Info."));
+		return FALSE;
+	}
+	BOOL bExist = TRUE;
+	CString str;
+	CArchive ar(&cfile, CArchive::load);
+	while (bExist)
+	{
+		bExist = ar.ReadString(str);
+		if (bExist)
+		{
+			sLine.Format(_T("%s\r\n"), str);
+			sData += sLine;
+		}
+	}
+	ar.Close();
+	cfile.Close();
+
+	return sData;
 }
