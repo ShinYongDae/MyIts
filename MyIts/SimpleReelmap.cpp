@@ -2469,6 +2469,15 @@ CString CSimpleReelmap::GetTimeIts()
 	return sData;
 }
 
+CString CSimpleReelmap::GetPathSapp3()
+{
+	CString sPath = _T("");
+	CString str;
+	CString sPathFolder = PATH_SAPP3_FOLDER;
+	sPath.Format(_T("%s\\%9s_%4s_%5s.txt"), sPathFolder, m_stInfo.m_sLot, m_stInfo.m_sProcessCode, m_stInfo.m_sMcName);
+	return sPath;
+}
+
 CString CSimpleReelmap::GetPathIts(int nSerial)
 {
 	CString sPath = _T("");
@@ -2727,6 +2736,43 @@ int CSimpleReelmap::GetItsDefCode(int nDefCode)
 	return 0;
 }
 
+CString CSimpleReelmap::GetTextListSapp3File(int nIdx) // Default : All
+{
+	CString sData = _T("");
+	CString sPathFolder = PATH_SAPP3_FOLDER;
+	CString sPath = sPathFolder + _T("\\*.txt");
+
+	CFileFind cFile;
+	BOOL bExist = cFile.FindFile(sPath);
+	if (!bExist) return sData; // pcrÆÄÀÏÀÌ Á¸ÀçÇÏÁö ¾ÊÀ½.
+
+	int nPos, nLine = 0;
+	CString sFileName, sItsFile, sTemp;
+	while (bExist)
+	{
+		bExist = cFile.FindNextFile();
+		if (cFile.IsDots()) continue;
+		if (!cFile.IsDirectory())
+		{
+			// ÆÄÀÏ¸íÀ» ¾òÀ½.
+			sFileName = cFile.GetFileName();
+			nPos = sFileName.ReverseFind('.');
+			if (nPos > 0)
+			{
+				sItsFile = sFileName.Left(nPos);
+				sTemp.Format(_T("%s\r\n"), sItsFile);
+				sData += sTemp;
+
+				if (nLine == nIdx)
+					return sItsFile;
+				nLine++;
+			}
+		}
+	}
+
+	return sData;
+}
+
 CString CSimpleReelmap::GetTextListItsFile(int nIdx)
 {
 	CString sData = _T("");
@@ -2764,6 +2810,39 @@ CString CSimpleReelmap::GetTextListItsFile(int nIdx)
 	return sData;
 }
 
+CString CSimpleReelmap::GetTextSapp3File(int nIdx)
+{
+	CString sLine, sData = _T("");
+	if (nIdx < 0) return sData;
+
+	CString sPathFolder = PATH_SAPP3_FOLDER;
+	CString sPath;
+	sPath.Format(_T("%s\\%s.txt"), sPathFolder, GetTextListSapp3File(nIdx));
+
+	CFile cfile;
+	if (!cfile.Open(sPath, CFile::modeRead | CFile::shareDenyNone, NULL))
+	{
+		AfxMessageBox(_T("Fail to load Info."));
+		return FALSE;
+	}
+	BOOL bExist = TRUE;
+	CString str;
+	CArchive ar(&cfile, CArchive::load);
+	while (bExist)
+	{
+		bExist = ar.ReadString(str);
+		if (bExist)
+		{
+			sLine.Format(_T("%s\r\n"), str);
+			sData += sLine;
+		}
+	}
+	ar.Close();
+	cfile.Close();
+
+	return sData;
+}
+
 CString CSimpleReelmap::GetTextItsFile(int nIdx)
 {
 	CString sLine, sData = _T("");
@@ -2793,6 +2872,373 @@ CString CSimpleReelmap::GetTextItsFile(int nIdx)
 	}
 	ar.Close();
 	cfile.Close();
+
+	return sData;
+}
+
+BOOL CSimpleReelmap::MakeSapp3()
+{
+	CString sPath = GetPathSapp3();
+	CFileFind cFile;
+	if (cFile.FindFile(sPath))
+		DeleteFile(sPath);
+	CString sData = GetTextSapp3();
+	CFile cfile;
+	if (!cfile.Open(sPath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyNone, NULL))
+	{
+		AfxMessageBox(_T("Fail to make SAPP3."));
+		return FALSE;
+	}
+	cfile.Write(sData, sData.GetLength() * sizeof(TCHAR));
+	cfile.Close();
+	return TRUE;
+}
+
+
+CString CSimpleReelmap::GetTextSapp3()
+{
+	CString sTemp, sData = _T("");
+	int j, k;
+	int nTotPcr = m_arPcrYield.GetCount();
+	if (nTotPcr < 1) return sData;
+	CPcrYield PcrYield = m_arPcrYield.GetAt(nTotPcr - 1);
+
+	int nTotPcs = PcrYield.GetTotalPcs();
+	int nStripPcs = nTotPcs / MAX_STRIP;
+
+	int nDefStrip[MAX_STRIP], nDefPerStrip[MAX_STRIP][MAX_DEF];
+	for (j = 0; j < MAX_STRIP; j++)
+	{
+		nDefStrip[j] = PcrYield.GetStripTotalBad(j);
+		for(k=0; k<MAX_DEF; k++)
+			nDefPerStrip[j][k] = PcrYield.GetStripDefNum(j, k);
+	}
+	double dEntireSpeed = m_stInfo.m_dEntireSpeed;
+
+	int nSum;
+	double dRateBeforeVerify, dRateAfterVerify;
+
+	// ÆÄÀÏ ÀÌ¸§.
+	CString sFile;
+	sData.Format(_T("FileName : %9s_%4s_%5s.txt\r\n\r\n"), m_stInfo.m_sLot, m_stInfo.m_sProcessCode, m_stInfo.m_sMcName);
+
+	// ¿­º° ÅõÀÔ/¿Ï¼º/¼öÀ² Data.
+	sData += _T("1Q\r\n");
+	dRateBeforeVerify = 100.0 * (nStripPcs - nDefStrip[0]) / nStripPcs;
+	dRateAfterVerify = 100.0 * (nStripPcs - nDefStrip[0]) / nStripPcs;
+	sTemp.Format(_T("%d,%d,%.1f,%.1f\r\n"), nStripPcs, nStripPcs - nDefStrip[0], dRateBeforeVerify, dRateAfterVerify); // ÅõÀÔ¼ö·®, ¿Ï¼º¼ö·®, VerifyÀü ¼ö·®, VerifyÈÄ ¼ö·®
+	sData += sTemp;
+
+	sData += _T("2Q\r\n");
+	dRateBeforeVerify = 100.0 * (nStripPcs - nDefStrip[1]) / nStripPcs;
+	dRateAfterVerify = 100.0 * (nStripPcs - nDefStrip[1]) / nStripPcs;
+	sTemp.Format(_T("%d,%d,%.1f,%.1f\r\n"), nStripPcs, nStripPcs - nDefStrip[1], dRateBeforeVerify, dRateAfterVerify); // ÅõÀÔ¼ö·®, ¿Ï¼º¼ö·®, VerifyÀü ¼ö·®, VerifyÈÄ ¼ö·®
+	sData += sTemp;
+
+	sData += _T("3Q\r\n");
+	dRateBeforeVerify = 100.0 * (nStripPcs - nDefStrip[2]) / nStripPcs;
+	dRateAfterVerify = 100.0 * (nStripPcs - nDefStrip[2]) / nStripPcs;
+	sTemp.Format(_T("%d,%d,%.1f,%.1f\r\n"), nStripPcs, nStripPcs - nDefStrip[2], dRateBeforeVerify, dRateAfterVerify); // ÅõÀÔ¼ö·®, ¿Ï¼º¼ö·®, VerifyÀü ¼ö·®, VerifyÈÄ ¼ö·®
+	sData += sTemp;
+
+	sData += _T("4Q\r\n");
+	dRateBeforeVerify = 100.0 * (nStripPcs - nDefStrip[3]) / nStripPcs;
+	dRateAfterVerify = 100.0 * (nStripPcs - nDefStrip[3]) / nStripPcs;
+	sTemp.Format(_T("%d,%d,%.1f,%.1f\r\n"), nStripPcs, nStripPcs - nDefStrip[3], dRateBeforeVerify, dRateAfterVerify); // ÅõÀÔ¼ö·®, ¿Ï¼º¼ö·®, VerifyÀü ¼ö·®, VerifyÈÄ ¼ö·®
+	sData += sTemp;
+	sData += _T("\r\n");
+
+	// ¿­º° ºÒ·® Data.
+	sData += _T("1X\r\n");
+	if (nDefPerStrip[0][DEF_OPEN] > 0 && m_nSapp3Code[Sapp3Open] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Open], nDefPerStrip[0][DEF_OPEN]); // ¿ÀÇÂ(B102)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[0][DEF_SHORT];// + nDefPerStrip[0][DEF_USHORT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3Short] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Short], nSum); // ¼îÆ®(B129) // +u¼îÆ®
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[0][DEF_USHORT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3UShort] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3UShort], nSum); // u¼îÆ®(B314)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[0][DEF_NICK] + nDefPerStrip[0][DEF_EDGE_NICK];
+	if (nSum > 0 && m_nSapp3Code[Sapp3Nick] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Nick], nSum); // °á¼Õ+¿§Áö°á¼Õ(B137)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[0][DEF_SPACE] + nDefPerStrip[0][DEF_EXTRA] + nDefPerStrip[0][DEF_PROTRUSION] + nDefPerStrip[0][DEF_EDGE_SPACE] + nDefPerStrip[0][DEF_EDGE_PROT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3SpaceExtraProt] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3SpaceExtraProt], nSum); // ¼±°£Æø+ÀÜµ¿+µ¹±â+¿§Áö¼±°£Æø+¿§Áöµ¹±â(B160)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[0][DEF_PINHOLE];
+	if (nSum > 0 && m_nSapp3Code[Sapp3PinHole] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3PinHole], nSum); // ÇÉÈ¦(B134)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[0][DEF_PAD];
+	if (nSum > 0 && m_nSapp3Code[Sapp3Pad] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Pad], nSum); // ÆÐµå(B316)
+		sData += sTemp;
+	}
+
+	if (nSum > 0 && m_nSapp3Code[Sapp3HOpen] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3HOpen], nDefPerStrip[0][DEF_HOLE_OPEN]);
+		sData += sTemp;
+	}
+	nSum = nDefPerStrip[0][DEF_HOLE_MISS] + nDefPerStrip[0][DEF_HOLE_POSITION] + nDefPerStrip[0][DEF_HOLE_DEFECT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3HMissHPosHBad] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3HMissHPosHBad], nSum);
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[0][DEF_VH_OPEN] + nDefPerStrip[0][DEF_VH_MISS] + nDefPerStrip[0][DEF_VH_POSITION] + nDefPerStrip[0][DEF_VH_DEF];
+	if (nSum > 0 && m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH], nSum);
+		sData += sTemp;
+	}
+
+
+	sData += _T("2X\r\n");
+
+	if (nDefPerStrip[1][DEF_OPEN] > 0 && m_nSapp3Code[Sapp3Open] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Open], nDefPerStrip[1][DEF_OPEN]); // ¿ÀÇÂ(B102)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[1][DEF_SHORT];// + nDefPerStrip[1][DEF_USHORT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3Short] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Short], nSum); // ¼îÆ®(B129) // +u¼îÆ®
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[1][DEF_USHORT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3UShort] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3UShort], nSum); // u¼îÆ®(B314)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[1][DEF_NICK] + nDefPerStrip[1][DEF_EDGE_NICK];
+	if (nSum > 0 && m_nSapp3Code[Sapp3Nick] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Nick], nSum); // °á¼Õ+¿§Áö°á¼Õ(B137)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[1][DEF_SPACE] + nDefPerStrip[1][DEF_EXTRA] + nDefPerStrip[1][DEF_PROTRUSION] + nDefPerStrip[1][DEF_EDGE_SPACE] + nDefPerStrip[1][DEF_EDGE_PROT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3SpaceExtraProt] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3SpaceExtraProt], nSum); // ¼±°£Æø+ÀÜµ¿+µ¹±â+¿§Áö¼±°£Æø+¿§Áöµ¹±â(B160)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[1][DEF_PINHOLE];
+	if (nSum > 0 && m_nSapp3Code[Sapp3PinHole] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3PinHole], nSum); // ÇÉÈ¦(B134)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[1][DEF_PAD];
+	if (nSum > 0 && m_nSapp3Code[Sapp3Pad] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Pad], nSum); // ÆÐµå(B316)
+		sData += sTemp;
+	}
+
+	if (nSum > 0 && m_nSapp3Code[Sapp3HOpen] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3HOpen], nDefPerStrip[1][DEF_HOLE_OPEN]);
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[1][DEF_HOLE_MISS] + nDefPerStrip[1][DEF_HOLE_POSITION] + nDefPerStrip[1][DEF_HOLE_DEFECT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3HMissHPosHBad] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3HMissHPosHBad], nSum);
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[1][DEF_VH_OPEN] + nDefPerStrip[1][DEF_VH_MISS] + nDefPerStrip[1][DEF_VH_POSITION] + nDefPerStrip[1][DEF_VH_DEF];
+	if (nSum > 0 && m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH], nSum);
+		sData += sTemp;
+	}
+
+
+	sData += _T("3X\r\n");
+
+	if (nDefPerStrip[2][DEF_OPEN] > 0 && m_nSapp3Code[Sapp3Open] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Open], nDefPerStrip[2][DEF_OPEN]); // ¿ÀÇÂ(B102)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[2][DEF_SHORT];// + nDefPerStrip[2][DEF_USHORT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3Short] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Short], nSum); // ¼îÆ®(B129) // +u¼îÆ®
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[2][DEF_USHORT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3UShort] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3UShort], nSum); // u¼îÆ®(B314)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[2][DEF_NICK] + nDefPerStrip[2][DEF_EDGE_NICK];
+	if (nSum > 0 && m_nSapp3Code[Sapp3Nick] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Nick], nSum); // °á¼Õ+¿§Áö°á¼Õ(B137)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[2][DEF_SPACE] + nDefPerStrip[2][DEF_EXTRA] + nDefPerStrip[2][DEF_PROTRUSION] + nDefPerStrip[2][DEF_EDGE_SPACE] + nDefPerStrip[2][DEF_EDGE_PROT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3SpaceExtraProt] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3SpaceExtraProt], nSum); // ¼±°£Æø+ÀÜµ¿+µ¹±â+¿§Áö¼±°£Æø+¿§Áöµ¹±â(B160)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[2][DEF_PINHOLE];
+	if (nSum > 0 && m_nSapp3Code[Sapp3PinHole] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3PinHole], nSum); // ÇÉÈ¦(B134)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[2][DEF_PAD];
+	if (nSum > 0 && m_nSapp3Code[Sapp3Pad] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Pad], nSum); // ÆÐµå(B316)
+		sData += sTemp;
+	}
+
+	if (nSum > 0 && m_nSapp3Code[Sapp3HOpen] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3HOpen], nDefPerStrip[2][DEF_HOLE_OPEN]);
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[2][DEF_HOLE_MISS] + nDefPerStrip[2][DEF_HOLE_POSITION] + nDefPerStrip[2][DEF_HOLE_DEFECT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3HMissHPosHBad] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3HMissHPosHBad], nSum);
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[2][DEF_VH_OPEN] + nDefPerStrip[2][DEF_VH_MISS] + nDefPerStrip[2][DEF_VH_POSITION] + nDefPerStrip[2][DEF_VH_DEF];
+	if (nSum > 0 && m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH], nSum);
+		sData += sTemp;
+	}
+
+
+	sData += _T("4X\r\n");
+
+	if (nDefPerStrip[3][DEF_OPEN] > 0 && m_nSapp3Code[Sapp3Open] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Open], nDefPerStrip[3][DEF_OPEN]); // ¿ÀÇÂ(B102)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[3][DEF_SHORT];// + nDefPerStrip[3][DEF_USHORT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3Short] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Short], nSum); // ¼îÆ®(B129) // +u¼îÆ®
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[3][DEF_USHORT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3UShort] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3UShort], nSum); // u¼îÆ®(B314)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[3][DEF_NICK] + nDefPerStrip[3][DEF_EDGE_NICK];
+	if (nSum > 0 && m_nSapp3Code[Sapp3Nick] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Nick], nSum); // °á¼Õ+¿§Áö°á¼Õ(B137)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[3][DEF_SPACE] + nDefPerStrip[3][DEF_EXTRA] + nDefPerStrip[3][DEF_PROTRUSION] + nDefPerStrip[3][DEF_EDGE_SPACE] + nDefPerStrip[3][DEF_EDGE_PROT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3SpaceExtraProt] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3SpaceExtraProt], nSum); // ¼±°£Æø+ÀÜµ¿+µ¹±â+¿§Áö¼±°£Æø+¿§Áöµ¹±â(B160)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[3][DEF_PINHOLE];
+	if (nSum > 0 && m_nSapp3Code[Sapp3PinHole] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3PinHole], nSum); // ÇÉÈ¦(B134)
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[3][DEF_PAD];
+	if (nSum > 0 && m_nSapp3Code[Sapp3Pad] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3Pad], nSum); // ÆÐµå(B316)
+		sData += sTemp;
+	}
+
+	if (nSum > 0 && m_nSapp3Code[Sapp3HOpen] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3HOpen], nDefPerStrip[3][DEF_HOLE_OPEN]);
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[3][DEF_HOLE_MISS] + nDefPerStrip[3][DEF_HOLE_POSITION] + nDefPerStrip[3][DEF_HOLE_DEFECT];
+	if (nSum > 0 && m_nSapp3Code[Sapp3HMissHPosHBad] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3HMissHPosHBad], nSum);
+		sData += sTemp;
+	}
+
+	nSum = nDefPerStrip[3][DEF_VH_OPEN] + nDefPerStrip[3][DEF_VH_MISS] + nDefPerStrip[3][DEF_VH_POSITION] + nDefPerStrip[3][DEF_VH_DEF];
+	if (nSum > 0 && m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH] > 0)
+	{
+		sTemp.Format(_T("B%d,%d\r\n"), m_nSapp3Code[Sapp3VHOpenVHAlignVHDefNoVH], nSum);
+		sData += sTemp;
+	}
+
+	// ¼Óµµ.
+	sData += _T("\r\nS\r\n");
+	sTemp.Format(_T("%.2f"), dEntireSpeed);
+	sData += sTemp;
+	sData += _T("\r\n");
+
+
+	return sData;
+
 
 	return sData;
 }

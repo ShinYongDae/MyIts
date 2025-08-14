@@ -23,6 +23,7 @@ CMyItsDlg::CMyItsDlg(CWnd* pParent /*=NULL*/)
 	m_pReelmap = NULL;
 	m_bConverse = FALSE;
 	m_nIdxItsFile = -1;
+	m_nIdxSapp3File = -1;
 }
 
 CMyItsDlg::~CMyItsDlg()
@@ -66,6 +67,9 @@ BOOL CMyItsDlg::OnInitDialog()
 	InitEdit();
 	InitReelmap();
 
+	DispIts();
+	DispSapp3();
+
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
 
@@ -107,15 +111,25 @@ HCURSOR CMyItsDlg::OnQueryDragIcon()
 
 void CMyItsDlg::InitEdit()
 {
-	myEdit.SubclassDlgItem(IDC_EDIT4, this);
-	myEdit.SetHwnd(this->GetSafeHwnd(), IDC_EDIT4);
-	myEdit.SetFontName(_T("Arial"));
-	myEdit.SetFontSize(12);
-	myEdit.SetFontBold(FALSE);
-	myEdit.SetTextColor(RGB_BLACK);
-	myEdit.SetBkColor(RGB_WHITE);
-	myEdit.SetText(_T(""));
-	myEdit.SetFont((CFont*)&myEdit.m_font, TRUE);
+	myEditIts.SubclassDlgItem(IDC_EDIT4, this);
+	myEditIts.SetHwnd(this->GetSafeHwnd(), IDC_EDIT4);
+	myEditIts.SetFontName(_T("Arial"));
+	myEditIts.SetFontSize(12);
+	myEditIts.SetFontBold(FALSE);
+	myEditIts.SetTextColor(RGB_BLACK);
+	myEditIts.SetBkColor(RGB_WHITE);
+	myEditIts.SetText(_T(""));
+	myEditIts.SetFont((CFont*)&myEditIts.m_font, TRUE);
+
+	myEditSapp3.SubclassDlgItem(IDC_EDIT5, this);
+	myEditSapp3.SetHwnd(this->GetSafeHwnd(), IDC_EDIT5);
+	myEditSapp3.SetFontName(_T("Arial"));
+	myEditSapp3.SetFontSize(12);
+	myEditSapp3.SetFontBold(FALSE);
+	myEditSapp3.SetTextColor(RGB_BLACK);
+	myEditSapp3.SetBkColor(RGB_WHITE);
+	myEditSapp3.SetText(_T(""));
+	myEditSapp3.SetFont((CFont*)&myEditSapp3.m_font, TRUE);
 }
 
 void CMyItsDlg::InitReelmap()
@@ -142,8 +156,6 @@ void CMyItsDlg::InitReelmap()
 	stInfo.m_nMaxStrip = 4;
 	stInfo.m_nMaxDefCode = 30;
 	m_pReelmap->Init(stInfo);
-
-	DispIts();
 }
 
 void CMyItsDlg::Disp(int nIdx)
@@ -235,11 +247,11 @@ void CMyItsDlg::DispSapp3()
 	CString sCurr = _T("");
 	CString sDisp = _T("");
 
-	//sDisp = m_pReelmap->GetTextListItsFile();
+	sDisp = m_pReelmap->GetTextListSapp3File();
 
-	GetDlgItem(IDC_EDIT3)->GetWindowText(sCurr);
+	GetDlgItem(IDC_EDIT5)->GetWindowText(sCurr);
 	if (sCurr != sDisp)
-		GetDlgItem(IDC_EDIT3)->SetWindowText(sDisp);
+		GetDlgItem(IDC_EDIT5)->SetWindowText(sDisp);
 }
 
 void CMyItsDlg::DispSapp3Result()
@@ -249,7 +261,7 @@ void CMyItsDlg::DispSapp3Result()
 	CString sCurr = _T("");
 	CString sDisp = _T("");
 
-	//sDisp = m_pReelmap->GetTextListItsFile();
+	sDisp = m_pReelmap->GetTextSapp3File(m_nIdxSapp3File);
 
 	GetDlgItem(IDC_EDIT2)->GetWindowText(sCurr);
 	if (sCurr != sDisp)
@@ -293,15 +305,20 @@ void CMyItsDlg::OnBnClickedButton4()
 void CMyItsDlg::OnBnClickedButton5()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
-	Disp(2); // LOSS
+	if (m_pReelmap)
+	{
+		m_pReelmap->MakeSapp3();
+		Disp(2); // LOSS
+	}
 }
 
 
 LRESULT CMyItsDlg::wmClickEdit(WPARAM wParam, LPARAM lParam)
 {
+	int nId = (int)wParam;
 	if(!lParam) return (LRESULT)0L;
-	CEdit* pControl = (CEdit*)GetDlgItem(IDC_EDIT4);
-	//UINT nFlags = (UINT)wParam;
+	CEdit* pControl = (CEdit*)GetDlgItem(nId);
+
 	//CPoint point;
 	//point.y = HIWORD(lParam);
 	//point.x = LOWORD(lParam);
@@ -309,7 +326,14 @@ LRESULT CMyItsDlg::wmClickEdit(WPARAM wParam, LPARAM lParam)
 	//int nCharIndex = pControl->CharFromPos(ptClient);
 
 	int nLineIndex = pControl->LineFromChar(-1); // 현재 캐럿이 있는 라인번호를 반환
-	CString sData = m_pReelmap->GetTextListItsFile();
+	CString sData;
+	if (nId == IDC_EDIT4)
+		sData = m_pReelmap->GetTextListItsFile();
+	else if (nId == IDC_EDIT5)
+		sData = m_pReelmap->GetTextListSapp3File();
+	else
+		return 0L;
+
 	CString sLine;
 	int nPos, nLine = 0;
 	int nCharSt = 0, nCharEd = 0;
@@ -323,8 +347,16 @@ LRESULT CMyItsDlg::wmClickEdit(WPARAM wParam, LPARAM lParam)
 		nCharEd = nCharSt + nPos - 1;
 		if (nLine == nLineIndex)
 		{
-			m_nIdxItsFile = nLine;
-			DispItsResult();
+			if (nId == IDC_EDIT4)
+			{
+				m_nIdxItsFile = nLine;
+				DispItsResult();
+			}
+			else if (nId == IDC_EDIT5)
+			{
+				m_nIdxSapp3File = nLine;
+				DispSapp3Result();
+			}
 			pControl->SetSel(nCharSt, nCharEd);
 			break;
 		}

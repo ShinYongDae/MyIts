@@ -8,6 +8,7 @@
 #define PATH_CONFIG				_T("C:\\R2RSet\\Config.ini")
 #define PATH_SAPP3				_T("C:\\R2RSet\\Sapp3.ini")
 #define PATH_ITS_FOLDER			_T("D:\\Its")
+#define PATH_SAPP3_FOLDER		_T("C:\\LOSS")
 
 #ifndef MAX_STRIP
 #define MAX_STRIP	4
@@ -282,7 +283,8 @@ class CSimpleReelmap : public CWnd
 	CString GetTimeIts();
 	CString GetPathIts(int nSerial);
 	CString GetTextIts(int nSerial);
-	BOOL MakeIts(int nSerial);
+	CString GetPathSapp3();
+	CString GetTextSapp3();
 	int GetItsDefCode(int nDefCode);
 
 public:
@@ -291,16 +293,9 @@ public:
 	static void ProcThrd(const LPVOID lpContext);
 
 	void Init(stRmapInfo stInfo);//int nMaxRow, int nMaxCol, int nActionCode = 0
-	CString GetTextResult();
-	CString GetTextConverse();
-	CString GetTextArPcr();
-	CString GetTextArPcrYield();
-	CString GetTextListItsFile(int nIdx = -1); // Default : All
-	CString GetTextItsFile(int nIdx);
 	BOOL GetMatrix(int nPcsId, int &nR, int &nC);
 	BOOL Save();
 	BOOL Load();
-	//BOOL Converse();
 
 	CArPcr& GetAddrArPcr();
 	CArPcrMark& GetAddrArPcrMark();
@@ -308,8 +303,19 @@ public:
 	char GetCodeBigDef(int nIdx);
 	char GetCodeSmallDef(int nIdx);
 
+	CString GetTextResult();
+	CString GetTextConverse();
+	CString GetTextArPcr();
+	CString GetTextArPcrYield();
+	CString GetTextListItsFile(int nIdx = -1); // Default : All
+	CString GetTextItsFile(int nIdx);
+	CString GetTextListSapp3File(int nIdx = -1); // Default : All
+	CString GetTextSapp3File(int nIdx);
+
 	void SetDispPnl(int nSerial);
 	void SetPcsMkOut(int nCam); // 0: Left Cam Or 1: Right Cam , 불량 피스 인덱스 [ 0 ~ (Total Pcs - 1) ]  // (피스인덱스는 CamMaster에서 정한 것을 기준으로 함.)
+	BOOL MakeIts(int nSerial);
+	BOOL MakeSapp3();
 
 protected:
 	void ThreadEnd();

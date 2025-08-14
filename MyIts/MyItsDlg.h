@@ -13,10 +13,10 @@ class CMyItsDlg : public CDialog
 	CSimpleReelmap* m_pReelmap;
 	BOOL m_bConverse;
 
-	CMyEdit myEdit;
+	CMyEdit myEditIts, myEditSapp3;
 	void InitEdit();
 
-	int m_nIdxItsFile;
+	int m_nIdxItsFile, m_nIdxSapp3File;
 	
 	void InitReelmap();
 	void Disp(int nIdx);

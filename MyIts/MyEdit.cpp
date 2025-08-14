@@ -219,7 +219,7 @@ void CMyEdit::OnLButtonDown(UINT nFlags, CPoint point)
 	LPARAM Point = (nY << 16) | point.x;
 
 	if (m_hParentWnd)
-		::PostMessage(m_hParentWnd, WM_EDIT_CLICK, (WPARAM)nFlags, (LPARAM)Point);
+		::PostMessage(m_hParentWnd, WM_EDIT_CLICK, (WPARAM)m_nCtrlID, (LPARAM)Point);
 
 	CEdit::OnLButtonDown(nFlags, point);
 }
