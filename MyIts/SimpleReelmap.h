@@ -257,7 +257,8 @@ class CSimpleReelmap : public CWnd
 	int MirrorLR(int nPcsId); // 좌우 미러링
 	int MirrorUD(int nPcsId); // 상하 미러링
 	int Rotate180(int nPcsId); // 180도 회전
-	void StringToChar(CString str, char* pCh); // char* returned must be deleted... 
+	void StringToChar(CString str, char* pCh);	// char* returned must be deleted... 
+	char* StringToChar(CString str);			// char* returned must be deleted... 
 	CString CharToString(const char *szStr);
 	void Free();
 
@@ -274,7 +275,7 @@ class CSimpleReelmap : public CWnd
 	BOOL SaveRmap();
 	BOOL SaveYield();
 	BOOL SaveMark();
-
+	
 	int m_nLayer;
 	int m_nDispPnl[2]; // Left(0), Right(1)
 	int m_nMkedPcs[2]; // Left(0), Right(1)
@@ -287,13 +288,17 @@ class CSimpleReelmap : public CWnd
 	CString GetTextSapp3();
 	int GetItsDefCode(int nDefCode);
 
+	int m_nItsOrgCase;
+
 public:
 	CSimpleReelmap(int nLayer, CString m_sPathInfo, CString sPathRmap, CString sPathYield, CString sPathMark, CWnd* pParent = NULL);
 	virtual ~CSimpleReelmap();
 	static void ProcThrd(const LPVOID lpContext);
 
 	void Init(stRmapInfo stInfo);//int nMaxRow, int nMaxCol, int nActionCode = 0
+	BOOL GetMatrixNormal(int nPcsId, int &nR, int &nC);
 	BOOL GetMatrix(int nPcsId, int &nR, int &nC);
+	BOOL GetMatrixIts(int nPcsId, int &nR, int &nC);
 	BOOL Save();
 	BOOL Load();
 
@@ -316,6 +321,8 @@ public:
 	void SetPcsMkOut(int nCam); // 0: Left Cam Or 1: Right Cam , 불량 피스 인덱스 [ 0 ~ (Total Pcs - 1) ]  // (피스인덱스는 CamMaster에서 정한 것을 기준으로 함.)
 	BOOL MakeIts(int nSerial);
 	BOOL MakeSapp3();
+
+	void SetItsOrgCase(int nCase);
 
 protected:
 	void ThreadEnd();

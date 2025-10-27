@@ -29,6 +29,7 @@ CSimpleReelmap::CSimpleReelmap(int nLayer, CString sPathInfo, CString sPathRmap,
 	m_nMkedPcs[1] = 0;
 
 	m_nLayer = nLayer;
+	m_nItsOrgCase = 0;
 
 	InitColor();
 	InitDef();
@@ -1524,7 +1525,7 @@ BOOL CSimpleReelmap::Save()
 
 BOOL CSimpleReelmap::SaveInfo()
 {
-	CFile cfile;
+	CFile cfile; // Bit-Stream으로 파일을 ofen.
 	if (!cfile.Open(m_sPathInfo, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary | CFile::shareDenyNone, NULL))
 	{
 		AfxMessageBox(_T("Fail to save Info."));
@@ -1566,7 +1567,7 @@ BOOL CSimpleReelmap::SaveInfo()
 
 BOOL CSimpleReelmap::SaveRmap()
 {
-	CFile cfile;
+	CFile cfile; // Bit-Stream으로 파일을 ofen.
 	if (!cfile.Open(m_sPathRmap, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary | CFile::shareDenyNone, NULL))
 	{
 		AfxMessageBox(_T("Fail to save Reelmap."));
@@ -1638,7 +1639,7 @@ BOOL CSimpleReelmap::SaveRmap()
 
 BOOL CSimpleReelmap::SaveYield()
 {
-	CFile cfile;
+	CFile cfile; // Bit-Stream으로 파일을 ofen.
 	if (!cfile.Open(m_sPathYield, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary | CFile::shareDenyNone, NULL))
 	{
 		AfxMessageBox(_T("Fail to save Yield."));
@@ -1697,7 +1698,7 @@ BOOL CSimpleReelmap::SaveYield()
 
 BOOL CSimpleReelmap::SaveMark()
 {
-	CFile cfile;
+	CFile cfile; // Bit-Stream으로 파일을 ofen.
 	if (!cfile.Open(m_sPathMark, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary | CFile::shareDenyNone, NULL))
 	{
 		AfxMessageBox(_T("Fail to save Mark."));
@@ -1768,7 +1769,7 @@ BOOL CSimpleReelmap::LoadInfo()
 	CString sItsCode;
 	CString sProcessCode;
 
-	CFile cfile;
+	CFile cfile; // Bit-Stream으로 파일을 ofen.
 	if (!cfile.Open(m_sPathInfo, CFile::modeRead | CFile::shareDenyNone, NULL))
 	{
 		AfxMessageBox(_T("Fail to load Info."));
@@ -1862,7 +1863,7 @@ BOOL CSimpleReelmap::LoadRmap()
 		m_arPcr.RemoveAll();
 	}
 
-	CFile cfile;
+	CFile cfile; // Bit-Stream으로 파일을 ofen.
 	if (!cfile.Open(m_sPathRmap, CFile::modeRead | CFile::shareDenyNone, NULL))
 	{
 		AfxMessageBox(_T("Fail to load Rmap."));
@@ -1964,7 +1965,7 @@ BOOL CSimpleReelmap::LoadYield()
 	if (nCount > 0)
 		m_arPcrYield.RemoveAll();
 
-	CFile cfile;
+	CFile cfile; // Bit-Stream으로 파일을 ofen.
 	if (!cfile.Open(m_sPathYield, CFile::modeRead | CFile::typeBinary | CFile::shareDenyNone, NULL))
 	{
 		AfxMessageBox(_T("Fail to load Yield."));
@@ -2025,7 +2026,7 @@ BOOL CSimpleReelmap::LoadYield()
 
 BOOL CSimpleReelmap::LoadMark()
 {
-	CFile cfile;
+	CFile cfile; // Bit-Stream으로 파일을 ofen.
 	if (!cfile.Open(m_sPathMark, CFile::modeRead | CFile::typeBinary | CFile::shareDenyNone, NULL))
 	{
 		AfxMessageBox(_T("Fail to load Mark."));
@@ -2184,6 +2185,29 @@ BOOL CSimpleReelmap::LoadDefectTableIni()
 	return TRUE;
 }
 
+BOOL CSimpleReelmap::GetMatrixNormal(int nPcsId, int &nR, int &nC)
+{
+	int nNodeX = m_stInfo.m_nMaxCol;
+	int nNodeY = m_stInfo.m_nMaxRow;
+
+	if (-1 < nPcsId && nPcsId < (nNodeX*nNodeY))
+	{
+		nC = int(nPcsId / nNodeY);
+		if (nC % 2)	// 홀수.
+			nR = nNodeY*(nC + 1) - 1 - nPcsId;
+		else		// 짝수.
+			nR = nPcsId - nC*nNodeY;
+	}
+	else
+	{
+		nC = -1;
+		nR = -1;
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
 BOOL CSimpleReelmap::GetMatrix(int nPcsId, int &nR, int &nC)
 {
 	int nNodeX = m_stInfo.m_nMaxCol;
@@ -2206,19 +2230,91 @@ BOOL CSimpleReelmap::GetMatrix(int nPcsId, int &nR, int &nC)
 		break;
 	}
 
-	if (-1 < nPcsId && nPcsId < (nNodeX*nNodeY))
-	{
-		nC = int(nPcsId / nNodeY);
-		if (nC % 2)	// 홀수.
-			nR = nNodeY*(nC + 1) - 1 - nPcsId;
-		else		// 짝수.
-			nR = nPcsId - nC*nNodeY;
-	}
-	else
-	{
-		nC = -1;
-		nR = -1;
+	if (!GetMatrixNormal(nPcsId, nR, nC))
 		return FALSE;
+
+	return TRUE;
+}
+
+BOOL CSimpleReelmap::GetMatrixIts(int nPcsId, int &nR, int &nC)
+{
+	int nNodeX = m_stInfo.m_nMaxCol;
+	int nNodeY = m_stInfo.m_nMaxRow;
+
+	switch (m_stInfo.m_nActionCode)	// 0 : Rotation / Mirror 적용 없음(CAM Data 원본), 1 : 좌우 미러, 2 : 상하 미러, 3 : 180 회전, 4 : 270 회전(CCW), 5 : 90 회전(CW)
+	{
+	case 0:
+		break;
+	case 1:
+		nPcsId = MirrorLR(nPcsId);
+		break;
+	case 2:
+		nPcsId = MirrorUD(nPcsId);
+		break;
+	case 3:
+		nPcsId = Rotate180(nPcsId);
+		break;
+	default:
+		break;
+	}
+
+	// case 0 : (nR, nC) --> case 1 or case 2 or case 3 : (nR, nC) 
+
+	int nStripY = nNodeY / MAX_STRIP;
+	switch (m_nItsOrgCase)
+	{
+	case 0:
+		if (!GetMatrixNormal(nPcsId, nR, nC))
+			return FALSE;
+		break;
+	case 1:
+		if (!GetMatrixNormal(nPcsId, nR, nC))
+			return FALSE;
+
+		if (nR < nStripY)			// Strip A --> Strip D
+		{
+			nR += 3 * nStripY;
+		}
+		else if (nR < 2 * nStripY)	// Strip B --> Strip C
+		{
+			nR += 1 * nStripY;
+		}
+		else if (nR < 3 * nStripY)	// Strip C --> Strip B
+		{
+			nR -= 1 * nStripY;
+		}
+		else if (nR < 4 * nStripY)	// Strip D --> Strip A
+		{
+			nR -= 3 * nStripY;
+		}
+		break;
+	case 2:
+		nPcsId = Rotate180(nPcsId);
+		if (!GetMatrixNormal(nPcsId, nR, nC))
+			return FALSE;
+
+		if (nR < nStripY)			// Strip A --> Strip D
+		{
+			nR += 3 * nStripY;
+		}
+		else if (nR < 2 * nStripY)	// Strip B --> Strip C
+		{
+			nR += 1 * nStripY;
+		}
+		else if (nR < 3 * nStripY)	// Strip C --> Strip B
+		{
+			nR -= 1 * nStripY;
+		}
+		else if (nR < 4 * nStripY)	// Strip D --> Strip A
+		{
+			nR -= 3 * nStripY;
+		}
+		break;
+	case 3:
+		nPcsId = Rotate180(nPcsId);
+		if (!GetMatrixNormal(nPcsId, nR, nC))
+			return FALSE;
+		break;
 	}
 
 	return TRUE;
@@ -2309,6 +2405,25 @@ int CSimpleReelmap::Rotate180(int nPcsId) // 180도 회전
 	return nId;
 }
 
+char* CSimpleReelmap::StringToChar(CString str) // char* returned must be deleted... 
+{
+	char*		szStr = NULL;
+	wchar_t*	wszStr;
+	int				nLenth;
+
+	USES_CONVERSION;
+	//1. CString to wchar_t* conversion
+	wszStr = T2W(str.GetBuffer(str.GetLength()));
+
+	//2. wchar_t* to char* conversion
+	nLenth = WideCharToMultiByte(CP_ACP, 0, wszStr, -1, NULL, 0, NULL, NULL); //char* 형에 대한길이를 구함 
+	szStr = new char[nLenth];  //메모리 할당 
+
+	//3. wchar_t* to char* conversion
+	WideCharToMultiByte(CP_ACP, 0, wszStr, -1, szStr, nLenth, 0, 0);
+	return szStr;
+}
+
 void CSimpleReelmap::StringToChar(CString str, char* pCh) // char* returned must be deleted... 
 {
 	wchar_t*	wszStr;
@@ -2321,7 +2436,7 @@ void CSimpleReelmap::StringToChar(CString str, char* pCh) // char* returned must
 	//2. wchar_t* to char* conversion
 	nLenth = WideCharToMultiByte(CP_ACP, 0, wszStr, -1, NULL, 0, NULL, NULL); //char* 형에 대한길이를 구함 
 
-																			  //3. wchar_t* to char* conversion
+	 //3. wchar_t* to char* conversion
 	WideCharToMultiByte(CP_ACP, 0, wszStr, -1, pCh, nLenth, 0, 0);
 	return;
 }
@@ -2522,19 +2637,45 @@ BOOL CSimpleReelmap::MakeIts(int nSerial)
 	CFileFind cFile;
 	if (cFile.FindFile(sPath))
 		DeleteFile(sPath);
-	CString sData = GetTextIts(nSerial);
-	CFile cfile;
+
+	// when Data format is TCHAR, ...
+	//CString sData = GetTextIts(nSerial); // return sData; (Data format : TCHAR형)
+	//if (sData.IsEmpty())
+	//	return FALSE;
+	//CFile cfile; // Bit-Stream으로 파일을 ofen.
+	//if (!cfile.Open(sPath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyNone, NULL))
+	//{
+	//	AfxMessageBox(_T("Fail to make ITS."));
+	//	return FALSE;
+	//}
+	//cfile.Write(sData, sData.GetLength() * sizeof(TCHAR));
+	//cfile.Close();
+
+	// when Data format is char, ...
+	CString sData = GetTextIts(nSerial); // return sData; (Data format : TCHAR형)
+	if (sData.IsEmpty()) return FALSE;	
+	int nFileSize = sData.GetLength();
+	char* pRtn = StringToChar(GetTextIts(nSerial));	// (Data format : char형)
+
+	CFile cfile; // Bit-Stream으로 파일을 ofen.
 	if (!cfile.Open(sPath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyNone, NULL))
 	{
 		AfxMessageBox(_T("Fail to make ITS."));
 		return FALSE;
 	}
-	cfile.Write(sData, sData.GetLength() * sizeof(TCHAR));
+	cfile.Write(pRtn, nFileSize * sizeof(char));
 	cfile.Close();
+
+	if (pRtn)
+	{
+		delete pRtn;
+		pRtn = NULL;
+	}
+
 	return TRUE;
 }
 
-CString CSimpleReelmap::GetTextIts(int nSerial)
+CString CSimpleReelmap::GetTextIts(int nSerial) // return sData; (Data format : TCHAR형)
 {
 	CString sData = _T("");
 
@@ -2593,7 +2734,7 @@ CString CSimpleReelmap::GetTextIts(int nSerial)
 	for (i = 0; i < nTotDef; i++)
 	{
 		nPcsId = Pcr.GetPcsId(i);
-		if (GetMatrix(nPcsId, nR, nC))
+		if (GetMatrixIts(nPcsId, nR, nC))
 		{
 			nMkCode = Pcr.GetMarkingCode(i);
 			nDefCode = Pcr.GetDefCode(i);
@@ -2602,25 +2743,25 @@ CString CSimpleReelmap::GetTextIts(int nSerial)
 				if (nR < nStripY)			// Strip A
 				{
 					nTotStrip[0]++;
-					str.Format(_T("%s,%04d,%s,A,%d,%d,B%d\n"), sItsCode, nSerial, sSide, nC + 1, nR + 1, GetItsDefCode(nDefCode));
+					str.Format(_T("%s,%04d,%s,A,%d,%d,B%d\n"), sItsCode, nSerial, sSide, nC + 1, (nR - 0 * nStripY) + 1, GetItsDefCode(nDefCode));
 					sStripA += str;
 				}
 				else if (nR < 2 * nStripY)	// Strip B
 				{
 					nTotStrip[1]++;
-					str.Format(_T("%s,%04d,%s,B,%d,%d,B%d\n"), sItsCode, nSerial, sSide, nC + 1, nR + 1, GetItsDefCode(nDefCode));
+					str.Format(_T("%s,%04d,%s,B,%d,%d,B%d\n"), sItsCode, nSerial, sSide, nC + 1, (nR - 1 * nStripY) + 1, GetItsDefCode(nDefCode));
 					sStripB += str;
 				}
 				else if (nR < 3 * nStripY)	// Strip C
 				{
 					nTotStrip[2]++;
-					str.Format(_T("%s,%04d,%s,C,%d,%d,B%d\n"), sItsCode, nSerial, sSide, nC + 1, nR + 1, GetItsDefCode(nDefCode));
+					str.Format(_T("%s,%04d,%s,C,%d,%d,B%d\n"), sItsCode, nSerial, sSide, nC + 1, (nR - 2 * nStripY) + 1, GetItsDefCode(nDefCode));
 					sStripC += str;
 				}
 				else if (nR < 4 * nStripY)	// Strip D
 				{
 					nTotStrip[3]++;
-					str.Format(_T("%s,%04d,%s,D,%d,%d,B%d\n"), sItsCode, nSerial, sSide, nC + 1, nR + 1, GetItsDefCode(nDefCode));
+					str.Format(_T("%s,%04d,%s,D,%d,%d,B%d\n"), sItsCode, nSerial, sSide, nC + 1, (nR - 3 * nStripY) + 1, GetItsDefCode(nDefCode));
 					sStripD += str;
 				}
 				else
@@ -2819,31 +2960,50 @@ CString CSimpleReelmap::GetTextSapp3File(int nIdx)
 	CString sPath;
 	sPath.Format(_T("%s\\%s.txt"), sPathFolder, GetTextListSapp3File(nIdx));
 
-	CFile cfile;
-	if (!cfile.Open(sPath, CFile::modeRead | CFile::shareDenyNone, NULL))
+	//CFile cfile; // Bit-Stream으로 파일을 ofen. (Data format : TCHAR형)
+	//if (!cfile.Open(sPath, CFile::modeRead | CFile::shareDenyNone, NULL))
+	//{
+	//	AfxMessageBox(_T("Fail to load Info."));
+	//	return FALSE;
+	//}
+	//BOOL bExist = TRUE;
+	//CString str;
+	//CArchive ar(&cfile, CArchive::load);
+	//while (bExist)
+	//{
+	//	bExist = ar.ReadString(str);
+	//	if (bExist)
+	//	{
+	//		sLine.Format(_T("%s\r\n"), str);
+	//		sData += sLine;
+	//	}
+	//}
+	//ar.Close();
+	//cfile.Close();
+
+	CStdioFile stdfile;	// Text로 파일을 ofen. (Data format : char형)
+	if (!stdfile.Open(sPath, CFile::modeRead | CFile::shareDenyNone, NULL))
 	{
 		AfxMessageBox(_T("Fail to load Info."));
 		return FALSE;
 	}
 	BOOL bExist = TRUE;
-	CString str;
-	CArchive ar(&cfile, CArchive::load);
+	CString str = _T("");
 	while (bExist)
 	{
-		bExist = ar.ReadString(str);
+		bExist = stdfile.ReadString(str);
 		if (bExist)
 		{
 			sLine.Format(_T("%s\r\n"), str);
 			sData += sLine;
 		}
 	}
-	ar.Close();
-	cfile.Close();
+	stdfile.Close();
 
 	return sData;
 }
 
-CString CSimpleReelmap::GetTextItsFile(int nIdx)
+CString CSimpleReelmap::GetTextItsFile(int nIdx) // return sData;  (Data format : char형 or TCHAR형)
 {
 	CString sLine, sData = _T("");
 	if (nIdx < 0) return sData;
@@ -2852,14 +3012,15 @@ CString CSimpleReelmap::GetTextItsFile(int nIdx)
 	CString sPath;
 	sPath.Format(_T("%s\\%s.dat"), sPathFolder, GetTextListItsFile(nIdx));
 
-	CFile cfile;
+	/*
+	CFile cfile;		// Bit-Stream으로 파일을 ofen. (Data format : TCHAR형)
 	if (!cfile.Open(sPath, CFile::modeRead | CFile::shareDenyNone, NULL))
 	{
 		AfxMessageBox(_T("Fail to load Info."));
 		return FALSE;
 	}
 	BOOL bExist = TRUE;
-	CString str;
+	CString str = _T("");
 	CArchive ar(&cfile, CArchive::load);
 	while (bExist)
 	{
@@ -2867,11 +3028,40 @@ CString CSimpleReelmap::GetTextItsFile(int nIdx)
 		if (bExist)
 		{
 			sLine.Format(_T("%s\r\n"), str);
+			//sLine.Append(str);
 			sData += sLine;
 		}
 	}
 	ar.Close();
 	cfile.Close();
+	*/
+
+	
+	CStdioFile stdfile;	// Text로 파일을 ofen. (Data format : char형)
+	if (!stdfile.Open(sPath, CFile::modeRead | CFile::shareDenyNone, NULL))
+	{
+		AfxMessageBox(_T("Fail to load Info."));
+		return FALSE;
+	}
+	BOOL bExist = TRUE;
+	CString str = _T("");
+	while (bExist)
+	{
+		bExist = stdfile.ReadString(str);
+		if (bExist)
+		{
+			sLine.Format(_T("%s\r\n"), str);
+			sData += sLine;
+		}
+	}
+	stdfile.Close();
+	
+
+	// Convert to char
+	//int nLen = sData.GetLength();
+	//char *out = (char*)malloc(sizeof(char)*(nLen + 1));
+	//wcstombs_s(NULL, out, nLen, sData, _TRUNCATE);
+	//out[nLen] = '\0';
 
 	return sData;
 }
@@ -2883,7 +3073,7 @@ BOOL CSimpleReelmap::MakeSapp3()
 	if (cFile.FindFile(sPath))
 		DeleteFile(sPath);
 	CString sData = GetTextSapp3();
-	CFile cfile;
+	CFile cfile; // Bit-Stream으로 파일을 ofen.
 	if (!cfile.Open(sPath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyNone, NULL))
 	{
 		AfxMessageBox(_T("Fail to make SAPP3."));
@@ -2895,7 +3085,7 @@ BOOL CSimpleReelmap::MakeSapp3()
 }
 
 
-CString CSimpleReelmap::GetTextSapp3()
+CString CSimpleReelmap::GetTextSapp3() // return sData;  (Data format : TCHAR형)
 {
 	CString sTemp, sData = _T("");
 	int j, k;
@@ -3238,7 +3428,9 @@ CString CSimpleReelmap::GetTextSapp3()
 
 
 	return sData;
+}
 
-
-	return sData;
+void CSimpleReelmap::SetItsOrgCase(int nCase)
+{
+	m_nItsOrgCase = nCase;
 }

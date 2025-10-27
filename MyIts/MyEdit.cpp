@@ -49,6 +49,9 @@ BEGIN_MESSAGE_MAP(CMyEdit, CEdit)
 	ON_WM_VSCROLL()
 	//}}AFX_MSG_MAP
 	ON_WM_LBUTTONDOWN()
+	ON_WM_KILLFOCUS()
+	ON_WM_SETFOCUS()
+	ON_WM_MOUSEMOVE()
 END_MESSAGE_MAP()
 
 /////////////////////////////////////////////////////////////////////////////
@@ -222,4 +225,30 @@ void CMyEdit::OnLButtonDown(UINT nFlags, CPoint point)
 		::PostMessage(m_hParentWnd, WM_EDIT_CLICK, (WPARAM)m_nCtrlID, (LPARAM)Point);
 
 	CEdit::OnLButtonDown(nFlags, point);
+}
+
+
+void CMyEdit::OnKillFocus(CWnd* pNewWnd)
+{
+	//CEdit::OnKillFocus(pNewWnd);
+
+	// TODO: 여기에 메시지 처리기 코드를 추가합니다.
+	//::PostMessage(m_hParentWnd, WM_KILLFOCUS, (WPARAM)0, (LPARAM)0);
+}
+
+
+//void CMyEdit::OnSetFocus(CWnd* pOldWnd)
+//{
+//	//CEdit::OnSetFocus(pOldWnd);
+//
+//	// TODO: 여기에 메시지 처리기 코드를 추가합니다.
+//	//::PostMessage(m_hParentWnd, WM_SETFOCUS, (WPARAM)0, (LPARAM)0);
+//}
+
+
+void CMyEdit::OnMouseMove(UINT nFlags, CPoint point)
+{
+	// TODO: 여기에 메시지 처리기 코드를 추가 및/또는 기본값을 호출합니다.
+
+	//CEdit::OnMouseMove(nFlags, point);
 }
